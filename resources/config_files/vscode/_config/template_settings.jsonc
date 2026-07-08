@@ -345,6 +345,10 @@
 		// "gitDecoration.ignoredResourceForeground": "",
 		// "gitDecoration.conflictingResourceForeground": ""
 	},
+	"editor.semanticTokenColorCustomizations": {
+		"selfParameter": "#f0f",
+		"parameter": "#f0f"
+	},
 	"editor.tokenColorCustomizations": {
 		"comments": "{{syntax.comments}}",
 		"strings": "{{syntax.strings}}",
@@ -356,9 +360,39 @@
 		"operators": "{{syntax.operators}}",
 		"textMateRules": [
 			{
-				"scope": "variable",
+				"scope": "variable.language.special.self.python",
 				"settings": {
 					"foreground": "{{syntax.variables}}"
+				}
+			},
+			{
+				"scope": "variable.language.special.self",
+				"settings": {
+					"foreground": "#f0f"
+				}
+			},
+			{
+				"scope": "variable.language.special",
+				"settings": {
+					"foreground": "#f0f"
+				}
+			},
+			{
+				"scope": "variable.language",
+				"settings": {
+					"foreground": "#f0f"
+				}
+			},
+			{
+				"scope": "variable.parameter.self.python",
+				"settings": {
+					"foreground": "#f0f"
+				}
+			},
+			{
+				"scope": "variable.parameter.self",
+				"settings": {
+					"foreground": "#f0f"
 				}
 			},
 			{
@@ -368,13 +402,19 @@
 				}
 			},
 			{
-				"scope": "variable.language",
+				"scope": "variable.other.readwrite.self.python",
 				"settings": {
-					"foreground": "{{syntax.variables}}"
+					"foreground": "#f0f"
 				}
 			},
 			{
-				"scope": "variable.language.special.self.python",
+				"scope": "variable.other.readwrite.self",
+				"settings": {
+					"foreground": "#f0f"
+				}
+			},
+			{
+				"scope": "variable.other.readwrite",
 				"settings": {
 					"foreground": "{{syntax.variables}}"
 				}
@@ -386,27 +426,9 @@
 				}
 			},
 			{
-				"scope": "variable.other.readwrite",
+				"scope": "variable",
 				"settings": {
-					"foreground": "{{syntax.variables}}"
-				}
-			},
-			{
-				"scope": "variable.other.property",
-				"settings": {
-					"foreground": "{{syntax.variables}}"
-				}
-			},
-			{
-				"scope": "variable.other.object",
-				"settings": {
-					"foreground": "{{syntax.variables}}"
-				}
-			},
-			{
-				"scope": "support.other.variable",
-				"settings": {
-					"foreground": "{{syntax.variables}}"
+					"foreground": "#f0f"
 				}
 			}
 		]

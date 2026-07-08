@@ -1,0 +1,61 @@
+# Starship prompt — estética powerline, paleta Tokyo Night (combina con kitty/color.ini)
+# Docs: https://starship.rs/config/
+
+add_newline = false
+palette = "tokyonight"
+
+format = """
+[](fg:bg_git)\
+$git_branch\
+$git_status\
+[](fg:bg_git bg:bg_dir)\
+$directory\
+[](fg:bg_dir)\
+$character"""
+
+[palettes.tokyonight]
+fg        = "#c0caf5"
+bg_dir    = "#7aa2f7"   # azul
+bg_git    = "#bb9af7"   # magenta
+bg_lang   = "#73daca"   # verde/cyan
+bg_time   = "#414868"   # gris
+red       = "#f7768e"
+green     = "#73daca"
+yellow    = "#e0af68"
+dark      = "#17192b"
+
+[directory]
+style = "fg:dark bg:bg_dir"
+format = "[ $path ]($style)"
+truncation_length = 3
+truncation_symbol = "…/"
+home_symbol = " ~"
+read_only = " "
+
+[directory.substitutions]
+"documentos" = " documentos"
+"Downloads"  = " descargas"
+
+[git_branch]
+symbol = " "
+style = "fg:dark bg:bg_git"
+format = "[ $symbol$branch ]($style)"
+
+[git_status]
+style = "fg:dark bg:bg_git"
+format = "[$all_status$ahead_behind ]($style)"
+conflicted = "="
+ahead = "⇡${count}"
+behind = "⇣${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+untracked = "?${count}"
+stashed = "*${count}"
+modified = "!${count}"
+staged = "+${count}"
+renamed = "»${count}"
+deleted = "✘${count}"
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+vimcmd_symbol = "[❮](bold yellow)"

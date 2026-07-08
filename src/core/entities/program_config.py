@@ -12,6 +12,7 @@ ProgramName = Literal[
     "sxhkd",
     "polybar",
     "kitty",
+    "starship",
     "ranger",
     "picom",
     "rofi",

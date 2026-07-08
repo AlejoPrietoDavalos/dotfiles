@@ -2,7 +2,11 @@ SHELL := /bin/bash
 RUN := PYTHONPATH=. python3 ./main.py
 PROGRAM ?=
 
-PROGRAMS := fonts bspwm sxhkd polybar kitty ranger picom rofi playerctl scrot thunar vscode xclip pulseaudio arandr xorg nvidia docker
+# Mirrors (reflector). Overrideable: make mirrors-update MIRROR_COUNTRIES="Argentina" MIRROR_AGE=6
+MIRROR_COUNTRIES ?= Chile,Brazil,Argentina
+MIRROR_AGE ?= 12
+
+PROGRAMS := fonts bspwm sxhkd polybar kitty starship ranger picom rofi playerctl scrot thunar vscode xclip pulseaudio arandr xorg nvidia docker
 PROGRAM_REQUIRED_TARGETS := install uninstall install-requirement uninstall-requirement install-files uninstall-files
 
 # Allow `make <target> <program>` as shorthand for `make <target> PROGRAM=<program>`.
@@ -22,7 +26,7 @@ endef
 	install uninstall install-requirement uninstall-requirement install-files uninstall-files \
 	install-all install-core remove-core remove-core-purge wm-requirements-install \
 	sddm-install sddm-enable sddm-start bspwm-bootstrap bspwm-install-session bspwm-check-display bspwm-restart \
-	sxhkd-reload clock-set keyboard-set-latam scripts-chmod \
+	sxhkd-reload clock-set keyboard-set-latam scripts-chmod mirrors-update \
 	$(PROGRAMS)
 
 $(PROGRAMS):
@@ -112,3 +116,22 @@ keyboard-set-latam:
 
 scripts-chmod:
 	@find ./scripts -maxdepth 1 -type f -exec chmod +x {} +
+
+# Refresca la lista de mirrors con reflector y sincroniza el índice de pacman.
+# Soluciona los 404 de "mirror viejo". Usá: make mirrors-update
+mirrors-update:
+	@command -v reflector >/dev/null 2>&1 || { echo "reflector no instalado: sudo pacman -S reflector"; exit 1; }
+	@echo ">> Respaldando mirrorlist actual..."
+	@sudo cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
+	@echo ">> Buscando mirrors ($(MIRROR_COUNTRIES), <$(MIRROR_AGE)h, https, por velocidad)..."
+	@sudo reflector \
+		--country $(MIRROR_COUNTRIES) \
+		--age $(MIRROR_AGE) \
+		--protocol https \
+		--sort rate \
+		--latest 20 \
+		--download-timeout 10 \
+		--save /etc/pacman.d/mirrorlist
+	@echo ">> Refrescando índice de paquetes (pacman -Syy)..."
+	@sudo pacman -Syy
+	@echo ">> Mirrors actualizados. Backup en /etc/pacman.d/mirrorlist.bak"

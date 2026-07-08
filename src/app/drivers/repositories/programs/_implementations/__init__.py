@@ -18,6 +18,9 @@ from src.app.drivers.repositories.programs._implementations.kitty_repository imp
 from src.app.drivers.repositories.programs._implementations.nvidia_repository import (
     NvidiaRepository,
 )
+from src.app.drivers.repositories.programs._implementations.starship_repository import (
+    StarshipRepository,
+)
 from src.app.drivers.repositories.programs._implementations.picom_repository import (
     PicomRepository,
 )
@@ -66,6 +69,7 @@ def get_program_repositories() -> Dict[ProgramName, CoreProgramRepository]:
         "docker": DockerRepository(),
         "fonts": FontsRepository(),
         "kitty": KittyRepository(),
+        "starship": StarshipRepository(),
         "nvidia": NvidiaRepository(),
         "picom": PicomRepository(),
         "playerctl": PlayerctlRepository(),
