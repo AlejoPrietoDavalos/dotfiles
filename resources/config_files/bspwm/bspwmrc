@@ -1,6 +1,11 @@
 #!/bin/bash
 pgrep -x sxhkd >/dev/null || sxhkd &
 
+THEME_ENV_FILE="$HOME/.config/theme/theme-env.sh"
+if [ -f "$THEME_ENV_FILE" ]; then
+    . "$THEME_ENV_FILE"
+fi
+
 ####################################################
 #                   Config BSPWM                   #
 ####################################################
@@ -43,6 +48,11 @@ fi
 if command -v picom >/dev/null 2>&1; then
     pkill picom >/dev/null 2>&1 || true
     picom --config "$HOME/.config/picom/picom.conf" &
+fi
+
+if command -v xsettingsd >/dev/null 2>&1; then
+    pkill xsettingsd >/dev/null 2>&1 || true
+    xsettingsd -c "$HOME/.config/xsettingsd/xsettingsd.conf" &
 fi
 
 #----------Wallpaper Aleatorio----------

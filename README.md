@@ -42,53 +42,74 @@ Acciones soportadas:
 - `uninstall-files`
 - `dirty_install_all_packages` (solo testing)
 
-## Makefile simplificado
-Ahora hay 6 comandos genericos y todos reciben `PROGRAM=<program>`:
+## CLI `dot`
+La CLI `dot` reemplaza al Makefile. Instalala una vez para tenerla en el PATH:
 
 ```bash
-make install PROGRAM=<program>
-make uninstall PROGRAM=<program>
-make install-requirement PROGRAM=<program>
-make uninstall-requirement PROGRAM=<program>
-make install-files PROGRAM=<program>
-make uninstall-files PROGRAM=<program>
-make install-all
+./dot self install    # crea symlink en ~/.local/bin/dot + completado bash
+```
+
+Hay 6 comandos genericos y todos reciben el `<program>` como argumento posicional:
+
+```bash
+dot install <program>
+dot uninstall <program>
+dot install-requirement <program>
+dot uninstall-requirement <program>
+dot install-files <program>
+dot uninstall-files <program>
+dot install-all
 ```
 
 Programas disponibles:
-- `bspwm`, `sxhkd`, `polybar`, `kitty`, `ranger`, `picom`, `rofi`, `playerctl`, `scrot`, `thunar`, `vscode`, `xclip`, `pulseaudio`, `arandr`, `xorg`, `nvidia`, `docker`.
+- `bspwm`, `sxhkd`, `polybar`, `kitty`, `ranger`, `picom`, `rofi`, `playerctl`, `scrot`, `thunar`, `theme-dark`, `vscode`, `xclip`, `pulseaudio`, `arandr`, `xorg`, `nvidia`, `docker`.
 
 Ejemplos:
 ```bash
-make install PROGRAM=bspwm
-make install-files PROGRAM=sxhkd
-make uninstall PROGRAM=polybar
+dot install bspwm
+dot install theme-dark
+dot install-files sxhkd
+dot uninstall polybar
 ```
 
 Notas:
-- `make install-files PROGRAM=sxhkd` copia `resources/config_files/sxhkd/sxhkdrc` a `~/.config/sxhkd/sxhkdrc`.
-- `make sxhkd-reload` recarga `sxhkd` enviando `USR1` al proceso.
+- `dot install-files sxhkd` copia `resources/config_files/sxhkd/sxhkdrc` a `~/.config/sxhkd/sxhkdrc`.
+- `dot sxhkd-reload` recarga `sxhkd` enviando `USR1` al proceso.
 - `vscode` usa copia de `settings.json` (no symlink).
-- `make install PROGRAM=docker` instala `docker` + `docker-compose`, ejecuta `sudo systemctl enable --now docker.service`, y agrega tu usuario al grupo `docker` si hace falta.
+- `dot install docker` instala `docker` + `docker-compose`, ejecuta `sudo systemctl enable --now docker.service`, y agrega tu usuario al grupo `docker` si hace falta.
 - Luego de agregar usuario al grupo `docker`, hay que cerrar sesion/abrir sesion (o reiniciar) para que aplique.
-- `make install-all` usa la accion dirty para instalar paquetes+files de todos los repos del registry.
+- `dot install-all` usa la accion dirty para instalar paquetes+files de todos los programas del registry.
+
+## Tema global oscuro (GTK + Qt)
+- Instalar capa de tema: `dot install theme-dark`
+- Aplica archivos en `~/.config/gtk-3.0`, `~/.config/gtk-4.0`, `~/.config/qt5ct`, `~/.config/qt6ct`, `~/.config/xsettingsd` y `~/.config/theme/theme-env.sh`.
+- `bspwmrc` ahora carga `~/.config/theme/theme-env.sh` y levanta `xsettingsd` si está instalado.
+- El tema por defecto queda en oscuro para GTK (`Adwaita-dark`) y Qt usa `qt5ct/qt6ct` cuando exista.
 
 ## Comandos auxiliares
 ```bash
-make install-core
-make install-all
-make remove-core
-make remove-core-purge
-make wm-requirements-install
-make bspwm-bootstrap
-make bspwm-install-session
-make bspwm-check-display
-make bspwm-restart
-make sxhkd-reload
-make scripts-chmod
-make clock-set
-make keyboard-set-latam
-make sddm-install
-make sddm-enable
-make sddm-start
+dot install-core
+dot install-all
+dot remove-core
+dot remove-core --purge
+dot bspwm bootstrap
+dot bspwm install-session
+dot bspwm check-display
+dot bspwm restart
+dot sxhkd-reload
+dot scripts-chmod
+dot clock-set
+dot keyboard latam
+dot sddm install
+dot sddm enable
+dot sddm start
+```
+
+Otros comandos utiles:
+```bash
+dot menu                 # menu interactivo de programas
+dot wifi                 # conectar a una red wifi (interactivo)
+dot wifi saved           # redes guardadas
+dot wifi status          # estado de los dispositivos de red
+dot mirrors-update       # refresca mirrors de pacman (reflector)
 ```
