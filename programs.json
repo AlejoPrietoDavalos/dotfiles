@@ -1,15 +1,24 @@
 {
   "arandr": {
-    "packages": [{ "manager": "pacman", "names": ["arandr"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["arandr"] },
+      { "manager": "apt", "names": ["arandr"] }
+    ],
     "deps": ["xorg"]
   },
   "bspwm": {
-    "packages": [{ "manager": "pacman", "names": ["bspwm", "xorg-setxkbmap", "feh"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["bspwm", "xorg-setxkbmap", "feh"] },
+      { "manager": "apt", "names": ["bspwm", "x11-xkb-utils", "feh"] }
+    ],
     "files": { "src": "bspwm", "dst": "~/.config/bspwm" },
     "deps": ["arandr"]
   },
   "docker": {
-    "packages": [{ "manager": "pacman", "names": ["docker", "docker-compose"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["docker", "docker-compose"] },
+      { "manager": "apt", "names": ["docker.io", "docker-compose"] }
+    ],
     "hooks": { "post_install": ["docker_enable_service", "docker_configure_group"] }
   },
   "fonts": {
@@ -18,44 +27,71 @@
     "hooks": { "post_install": ["fonts_install_local"] }
   },
   "kitty": {
-    "packages": [{ "manager": "pacman", "names": ["kitty"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["kitty"] },
+      { "manager": "apt", "names": ["kitty"] }
+    ],
     "files": { "src": "kitty", "dst": "~/.config/kitty" }
   },
   "nvidia": {
     "packages": [{ "manager": "pacman", "names": ["nvidia-open", "nvidia-utils", "nvidia-settings", "nvidia-prime"] }]
   },
   "picom": {
-    "packages": [{ "manager": "pacman", "names": ["picom"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["picom"] },
+      { "manager": "apt", "names": ["picom"] }
+    ],
     "files": { "src": "picom", "dst": "~/.config/picom" }
   },
   "playerctl": {
-    "packages": [{ "manager": "pacman", "names": ["playerctl"] }]
+    "packages": [
+      { "manager": "pacman", "names": ["playerctl"] },
+      { "manager": "apt", "names": ["playerctl"] }
+    ]
   },
   "polybar": {
-    "packages": [{ "manager": "pacman", "names": ["polybar", "networkmanager", "libnotify"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["polybar", "networkmanager", "libnotify"] },
+      { "manager": "apt", "names": ["polybar", "network-manager", "libnotify-bin"] }
+    ],
     "files": { "src": "polybar", "dst": "~/.config/polybar" },
     "deps": ["pulseaudio"]
   },
   "pulseaudio": {
-    "packages": [{ "manager": "pacman", "names": ["pamixer"] }]
+    "packages": [
+      { "manager": "pacman", "names": ["pamixer"] },
+      { "manager": "apt", "names": ["pamixer"] }
+    ]
   },
   "ranger": {
-    "packages": [{ "manager": "pacman", "names": ["ranger"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["ranger"] },
+      { "manager": "apt", "names": ["ranger"] }
+    ],
     "files": { "src": "ranger", "dst": "~/.config/ranger" }
   },
   "rofi": {
-    "packages": [{ "manager": "pacman", "names": ["rofi"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["rofi"] },
+      { "manager": "apt", "names": ["rofi"] }
+    ],
     "files": { "src": "rofi", "dst": "~/.config/rofi" }
   },
   "scrot": {
-    "packages": [{ "manager": "pacman", "names": ["scrot"] }]
+    "packages": [
+      { "manager": "pacman", "names": ["scrot"] },
+      { "manager": "apt", "names": ["scrot"] }
+    ]
   },
   "starship": {
     "packages": [{ "manager": "pacman", "names": ["starship"] }],
     "files": { "src": "starship", "dst": "~/.config" }
   },
   "sxhkd": {
-    "packages": [{ "manager": "pacman", "names": ["sxhkd"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["sxhkd"] },
+      { "manager": "apt", "names": ["sxhkd"] }
+    ],
     "files": {
       "src": "sxhkd",
       "dst": "~/.config/sxhkd",
@@ -68,7 +104,10 @@
     "hooks": { "post_install": ["sxhkd_reload"] }
   },
   "thunar": {
-    "packages": [{ "manager": "pacman", "names": ["thunar"] }],
+    "packages": [
+      { "manager": "pacman", "names": ["thunar"] },
+      { "manager": "apt", "names": ["thunar"] }
+    ],
     "files": { "src": "thunar", "dst": "~/.config/Thunar" }
   },
   "vscode": {
@@ -77,9 +116,15 @@
     "hooks": { "pre_install": ["vscode_render_settings"] }
   },
   "xclip": {
-    "packages": [{ "manager": "pacman", "names": ["xclip"] }]
+    "packages": [
+      { "manager": "pacman", "names": ["xclip"] },
+      { "manager": "apt", "names": ["xclip"] }
+    ]
   },
   "xorg": {
-    "packages": [{ "manager": "pacman", "names": ["xorg-server", "xorg-xinit", "xorg-xrandr"] }]
+    "packages": [
+      { "manager": "pacman", "names": ["xorg-server", "xorg-xinit", "xorg-xrandr"] },
+      { "manager": "apt", "names": ["xserver-xorg", "xinit", "x11-xserver-utils"] }
+    ]
   }
 }

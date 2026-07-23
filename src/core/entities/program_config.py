@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Literal, get_args
 
-PkgManager = Literal["pacman", "yay"]
+PkgManager = Literal["pacman", "yay", "apt"]
 FileMode = Literal["link", "copy"]
 
 # Los nombres de programa ya no son un Literal fijo: la lista válida la define
