@@ -1,15 +1,17 @@
 from src.core.entities.program_config import ProgramName
-from src.core.repositories.programs import CoreProgramFactoryRepository, CoreProgramInstallerRepository
+from src.core.repositories.programs import (
+    CoreProgramInstallerRepository,
+    CoreProgramLoaderRepository,
+)
 
 
 class ProgramActions:
-    # TODO: Revisar esta clase, no me convence del todo como está implementada, pero por ahora funciona.
     def __init__(
         self,
-        program_factory_repo: CoreProgramFactoryRepository,
+        program_loader_repo: CoreProgramLoaderRepository,
         program_installer_repo: CoreProgramInstallerRepository,
     ) -> None:
-        self._program_factory_repo = program_factory_repo
+        self._program_loader_repo = program_loader_repo
         self._program_installer_repo = program_installer_repo
 
     def run(self, action: str, program: ProgramName | None = None) -> None:
@@ -20,12 +22,11 @@ class ProgramActions:
         if program is None:
             raise ValueError(f"Action '{action}' requires --program")
 
-        program_repo = self._program_factory_repo.get_program_repo(program)
-        program_cfg = program_repo.default_config()
+        program_cfg = self._program_loader_repo.get_config(program)
 
         if action == "install-requirement":
             for dep in self._resolve_dependency_order(program):
-                dep_cfg = self._program_factory_repo.get_program_repo(dep).default_config()
+                dep_cfg = self._program_loader_repo.get_config(dep)
                 self._program_installer_repo.install_requirement(dep_cfg)
             return
 
@@ -43,7 +44,7 @@ class ProgramActions:
 
         if action == "install":
             for dep in self._resolve_dependency_order(program):
-                dep_cfg = self._program_factory_repo.get_program_repo(dep).default_config()
+                dep_cfg = self._program_loader_repo.get_config(dep)
                 self._program_installer_repo.install_requirement(dep_cfg)
             self._program_installer_repo.install_files(program_cfg)
             return
@@ -56,10 +57,9 @@ class ProgramActions:
         raise ValueError(f"Unknown action: {action}")
 
     def _dirty_install_all_packages(self) -> None:
-        for program in self._program_factory_repo.list_programs():
+        for program in self._program_loader_repo.list_programs():
             try:
-                program_repo = self._program_factory_repo.get_program_repo(program)
-                program_cfg = program_repo.default_config()
+                program_cfg = self._program_loader_repo.get_config(program)
                 self._program_installer_repo.install_requirement(program_cfg)
                 self._program_installer_repo.install_files(program_cfg)
             except Exception:
@@ -76,7 +76,7 @@ class ProgramActions:
             if name in in_stack:
                 raise ValueError(f"Cyclic dependency detected at program: {name}")
             in_stack.add(name)
-            cfg = self._program_factory_repo.get_program_repo(name).default_config()
+            cfg = self._program_loader_repo.get_config(name)
             for dep in cfg.program_dependencies:
                 visit(dep)
             in_stack.remove(name)

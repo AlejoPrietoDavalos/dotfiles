@@ -5,8 +5,8 @@ from typing import Literal
 
 from src.core.constants import path_screenshots
 from src.core.repositories.local_file import CoreTmpRepository
-from src.core.repositories.programs._implementations.scrot_repository import CoreScrotRepository
-from src.core.repositories.programs._implementations.xclip_repository import CoreXclipRepository
+from src.core.repositories.system.clipboard_repository import CoreClipboardRepository
+from src.core.repositories.system.screenshot_repository import CoreScreenshotRepository
 
 
 CaptureMode = Literal["bbox", "focused", "full_screen"]
@@ -18,13 +18,13 @@ logger = logging.getLogger(__name__)
 class TakeScreenshotService:
     def __init__(
         self,
-        scrot_repo: CoreScrotRepository,
-        xclip_repo: CoreXclipRepository,
+        screenshot_repo: CoreScreenshotRepository,
+        clipboard_repo: CoreClipboardRepository,
         tmp_repo: CoreTmpRepository,
         path_output_folder: Path = path_screenshots,
     ) -> None:
-        self._scrot_repo = scrot_repo
-        self._xclip_repo = xclip_repo
+        self._screenshot_repo = screenshot_repo
+        self._clipboard_repo = clipboard_repo
         self._tmp_repo = tmp_repo
         self._path_output_folder = path_output_folder
 
@@ -38,7 +38,7 @@ class TakeScreenshotService:
                 if tmp_png.stat().st_size == 0:
                     raise RuntimeError(f"Screenshot capture created an empty file: {tmp_png}")
                 logger.info("Capture done: %s (%s bytes)", tmp_png, tmp_png.stat().st_size)
-                self._xclip_repo.copy_png_to_clipboard(tmp_png)
+                self._clipboard_repo.copy_png_to_clipboard(tmp_png)
                 logger.info("Image copied to clipboard")
 
                 if with_save == 1:
@@ -54,12 +54,12 @@ class TakeScreenshotService:
 
     def _capture(self, mode: CaptureMode, path_output_png: Path) -> None:
         if mode == "bbox":
-            self._scrot_repo.capture_bbox(path_output_png)
+            self._screenshot_repo.capture_bbox(path_output_png)
             return
         if mode == "focused":
-            self._scrot_repo.capture_focused(path_output_png)
+            self._screenshot_repo.capture_focused(path_output_png)
             return
-        self._scrot_repo.capture_full_screen(path_output_png)
+        self._screenshot_repo.capture_full_screen(path_output_png)
 
     def _next_screenshot_path(self) -> Path:
         self._path_output_folder.mkdir(parents=True, exist_ok=True)

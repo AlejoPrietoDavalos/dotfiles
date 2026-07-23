@@ -1,26 +1,11 @@
-from src.core.repositories.programs._implementations.arandr_repository import CoreArandrRepository
-from src.core.repositories.programs._implementations.bspwm_repository import CoreBspwmRepository
-from src.core.repositories.programs._implementations.docker_repository import CoreDockerRepository
-from src.core.repositories.programs._implementations.fonts_repository import CoreFontsRepository
-from src.core.repositories.programs._implementations.hwclock_repository import CoreHwclockRepository
-from src.core.repositories.programs._implementations.kitty_repository import CoreKittyRepository
-from src.core.repositories.programs._implementations.nvidia_repository import CoreNvidiaRepository
-from src.core.repositories.programs._implementations.picom_repository import CorePicomRepository
-from src.core.repositories.programs._implementations.playerctl_repository import (
-    CorePlayerctlRepository,
+from src.core.repositories.programs.program_installer_repository import (
+    CoreProgramInstallerRepository,
 )
-from src.core.repositories.programs._implementations.polybar_repository import CorePolybarRepository
-from src.core.repositories.programs._implementations.pulseaudio_repository import CorePulseaudioRepository
-from src.core.repositories.programs._implementations.ranger_repository import CoreRangerRepository
-from src.core.repositories.programs._implementations.rofi_repository import CoreRofiRepository
-from src.core.repositories.programs._implementations.scrot_repository import CoreScrotRepository
-from src.core.repositories.programs._implementations.setxkbmap_repository import CoreSetxkbmapRepository
-from src.core.repositories.programs._implementations.sxhkd_repository import CoreSxhkdRepository
-from src.core.repositories.programs._implementations.thunar_repository import CoreThunarRepository
-from src.core.repositories.programs._implementations.vscode_repository import CoreVscodeRepository
-from src.core.repositories.programs._implementations.xclip_repository import CoreXclipRepository
-from src.core.repositories.programs._implementations.xrandr_repository import CoreXrandrRepository
-from src.core.repositories.programs._implementations.xorg_repository import CoreXorgRepository
-from src.core.repositories.programs.program_repository import CoreProgramRepository
-from src.core.repositories.programs.program_factory_repository import CoreProgramFactoryRepository
-from src.core.repositories.programs.program_installer_repository import CoreProgramInstallerRepository
+from src.core.repositories.programs.program_loader_repository import (
+    CoreProgramLoaderRepository,
+)
+
+__all__ = [
+    "CoreProgramInstallerRepository",
+    "CoreProgramLoaderRepository",
+]

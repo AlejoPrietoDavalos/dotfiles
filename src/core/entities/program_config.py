@@ -6,28 +6,12 @@ from typing import Callable, Literal, get_args
 
 PkgManager = Literal["pacman", "yay"]
 FileMode = Literal["link", "copy"]
-ProgramName = Literal[
-    "fonts",
-    "bspwm",
-    "sxhkd",
-    "polybar",
-    "kitty",
-    "starship",
-    "ranger",
-    "picom",
-    "rofi",
-    "playerctl",
-    "scrot",
-    "thunar",
-    "vscode",
-    "xclip",
-    "pulseaudio",
-    "arandr",
-    "xorg",
-    "nvidia",
-    "docker",
-]
-PROGRAM_NAMES: tuple[ProgramName, ...] = get_args(ProgramName)
+
+# Los nombres de programa ya no son un Literal fijo: la lista válida la define
+# ``programs.json`` en runtime (ver ProgramLoaderRepository). Un nombre es cualquier
+# string no vacío; el loader falla claro si se pide uno que no existe en el JSON.
+ProgramName = str
+
 PKG_MANAGERS: tuple[PkgManager, ...] = get_args(PkgManager)
 FILE_MODES: tuple[FileMode, ...] = get_args(FileMode)
 
@@ -74,11 +58,7 @@ class ProgramConfig:
     post_uninstall_actions: tuple[Callable[[], None], ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
-        if self.name not in PROGRAM_NAMES:
-            raise ValueError(f"Invalid program '{self.name}'. Available: {PROGRAM_NAMES}")
-        for dep in self.program_dependencies:
-            if dep not in PROGRAM_NAMES:
-                raise ValueError(
-                    f"Invalid dependency '{dep}' in program '{self.name}'. "
-                    f"Available: {PROGRAM_NAMES}"
-                )
+        if not self.name:
+            raise ValueError("ProgramConfig.name must be a non-empty string")
+        # La validación de que 'name' y cada dep existan como programa la hace el loader
+        # (ProgramLoaderRepository) contra las claves de programs.json.

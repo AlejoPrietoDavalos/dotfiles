@@ -1,0 +1,85 @@
+{
+  "arandr": {
+    "packages": [{ "manager": "pacman", "names": ["arandr"] }],
+    "deps": ["xorg"]
+  },
+  "bspwm": {
+    "packages": [{ "manager": "pacman", "names": ["bspwm", "xorg-setxkbmap", "feh"] }],
+    "files": { "src": "bspwm", "dst": "~/.config/bspwm" },
+    "deps": ["arandr"]
+  },
+  "docker": {
+    "packages": [{ "manager": "pacman", "names": ["docker", "docker-compose"] }],
+    "hooks": { "post_install": ["docker_enable_service", "docker_configure_group"] }
+  },
+  "fonts": {
+    "packages": [{ "manager": "pacman", "names": ["ttf-hack-nerd"] }],
+    "files": { "src": "fonts", "dst": "~/.config/fonts" },
+    "hooks": { "post_install": ["fonts_install_local"] }
+  },
+  "kitty": {
+    "packages": [{ "manager": "pacman", "names": ["kitty"] }],
+    "files": { "src": "kitty", "dst": "~/.config/kitty" }
+  },
+  "nvidia": {
+    "packages": [{ "manager": "pacman", "names": ["nvidia-open", "nvidia-utils", "nvidia-settings", "nvidia-prime"] }]
+  },
+  "picom": {
+    "packages": [{ "manager": "pacman", "names": ["picom"] }],
+    "files": { "src": "picom", "dst": "~/.config/picom" }
+  },
+  "playerctl": {
+    "packages": [{ "manager": "pacman", "names": ["playerctl"] }]
+  },
+  "polybar": {
+    "packages": [{ "manager": "pacman", "names": ["polybar", "networkmanager", "libnotify"] }],
+    "files": { "src": "polybar", "dst": "~/.config/polybar" },
+    "deps": ["pulseaudio"]
+  },
+  "pulseaudio": {
+    "packages": [{ "manager": "pacman", "names": ["pamixer"] }]
+  },
+  "ranger": {
+    "packages": [{ "manager": "pacman", "names": ["ranger"] }],
+    "files": { "src": "ranger", "dst": "~/.config/ranger" }
+  },
+  "rofi": {
+    "packages": [{ "manager": "pacman", "names": ["rofi"] }],
+    "files": { "src": "rofi", "dst": "~/.config/rofi" }
+  },
+  "scrot": {
+    "packages": [{ "manager": "pacman", "names": ["scrot"] }]
+  },
+  "starship": {
+    "packages": [{ "manager": "pacman", "names": ["starship"] }],
+    "files": { "src": "starship", "dst": "~/.config" }
+  },
+  "sxhkd": {
+    "packages": [{ "manager": "pacman", "names": ["sxhkd"] }],
+    "files": {
+      "src": "sxhkd",
+      "dst": "~/.config/sxhkd",
+      "tokens": {
+        "COMMAND_OPEN_BROWSER": "brave",
+        "COMMAND_OPEN_INCOGNITO": "brave --incognito"
+      }
+    },
+    "deps": ["playerctl", "scrot", "xclip"],
+    "hooks": { "post_install": ["sxhkd_reload"] }
+  },
+  "thunar": {
+    "packages": [{ "manager": "pacman", "names": ["thunar"] }],
+    "files": { "src": "thunar", "dst": "~/.config/Thunar" }
+  },
+  "vscode": {
+    "packages": [{ "manager": "yay", "names": ["code"] }],
+    "files": { "src": "vscode", "dst": "~/.config/Code/User" },
+    "hooks": { "pre_install": ["vscode_render_settings"] }
+  },
+  "xclip": {
+    "packages": [{ "manager": "pacman", "names": ["xclip"] }]
+  },
+  "xorg": {
+    "packages": [{ "manager": "pacman", "names": ["xorg-server", "xorg-xinit", "xorg-xrandr"] }]
+  }
+}

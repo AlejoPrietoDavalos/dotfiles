@@ -4,8 +4,8 @@
 import argparse
 
 from src.app.drivers.repositories.logs import ConfigureLoggingRepository
-from src.app.drivers.repositories.programs._implementations.hwclock_repository import (
-    HwclockRepository,
+from src.app.drivers.repositories.system.clock_repository import (
+    HwclockClockRepository,
 )
 
 
@@ -20,7 +20,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    repo = HwclockRepository()
+    repo = HwclockClockRepository()
     repo.set_timezone(args.timezone)
     repo.sync_system_to_hardware()
     return 0

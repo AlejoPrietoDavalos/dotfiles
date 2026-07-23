@@ -4,8 +4,8 @@
 import argparse
 
 from src.app.drivers.repositories.logs import ConfigureLoggingRepository
-from src.app.drivers.repositories.programs._implementations.setxkbmap_repository import (
-    SetxkbmapRepository,
+from src.app.drivers.repositories.system.keyboard_repository import (
+    SetxkbmapKeyboardRepository,
 )
 
 
@@ -16,7 +16,7 @@ def main() -> int:
     parser.add_argument("--layout", default="latam")
     args = parser.parse_args()
 
-    repo = SetxkbmapRepository()
+    repo = SetxkbmapKeyboardRepository()
     repo.set_layout(args.layout)
     return 0
 

@@ -1,0 +1,390 @@
+#!/usr/bin/env python3
+"""CLI de los dotfiles. Reemplaza al Makefile.
+
+Solo usa stdlib (argparse/subprocess): funciona con el python3 del sistema.
+Instalación: ./dot self install   (crea symlink en ~/.local/bin/dot)
+"""
+
+import argparse
+import getpass
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+PROGRAMS = sorted(json.loads((PROJECT_ROOT / "programs.json").read_text()))
+CORE_PROGRAMS = ["bspwm", "sxhkd", "polybar", "picom"]
+
+
+def sh(*cmd: str, check: bool = True) -> int:
+    return subprocess.run(list(cmd), check=check).returncode
+
+
+def capture(*cmd: str) -> str:
+    return subprocess.run(list(cmd), check=True, capture_output=True, text=True).stdout
+
+
+def build_program_actions():
+    from src.app.drivers.repositories.logs import ConfigureLoggingRepository
+    from src.app.drivers.repositories.programs import (
+        ProgramInstallerRepository,
+        ProgramLoaderRepository,
+    )
+    from src.core.use_cases.program_actions import ProgramActions
+
+    ConfigureLoggingRepository().configure(log_filename="main.log")
+    return ProgramActions(
+        program_loader_repo=ProgramLoaderRepository(),
+        program_installer_repo=ProgramInstallerRepository(),
+    )
+
+
+# ---------------------------------------------------------------- programas
+
+def cmd_program_action(args: argparse.Namespace) -> None:
+    build_program_actions().run(action=args.action, program=args.program)
+
+
+def cmd_install_all(args: argparse.Namespace) -> None:
+    build_program_actions().run(action="dirty_install_all_packages")
+
+
+def cmd_install_core(args: argparse.Namespace) -> None:
+    actions = build_program_actions()
+    for program in CORE_PROGRAMS:
+        actions.run(action="install", program=program)
+
+
+def cmd_remove_core(args: argparse.Namespace) -> None:
+    if args.purge:
+        os.environ["WM_REMOVE_PACKAGES"] = "1"
+    actions = build_program_actions()
+    for program in reversed(CORE_PROGRAMS):
+        actions.run(action="uninstall", program=program)
+
+
+def cmd_menu(args: argparse.Namespace) -> None:
+    sh(sys.executable, str(PROJECT_ROOT / "scripts" / "menu.py"))
+
+
+# ---------------------------------------------------------------- wifi
+
+def _nmcli_lines(*cmd: str) -> list[list[str]]:
+    """Corre nmcli en modo -t y devuelve filas ya separadas (maneja '\\:')."""
+    out = capture("nmcli", "-t", *cmd)
+    rows = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        fields = [f.replace("\\:", ":") for f in re.split(r"(?<!\\):", line)]
+        rows.append(fields)
+    return rows
+
+
+def _saved_wifi_profiles() -> set[str]:
+    return {
+        name
+        for name, ctype in _nmcli_lines("-f", "NAME,TYPE", "connection", "show")
+        if ctype == "802-11-wireless"
+    }
+
+
+def _scan_networks() -> list[dict]:
+    rows = _nmcli_lines("-f", "IN-USE,SSID,SECURITY,SIGNAL", "dev", "wifi", "list", "--rescan", "yes")
+    seen: dict[str, dict] = {}
+    for in_use, ssid, security, signal in rows:
+        if not ssid:
+            continue
+        net = {
+            "ssid": ssid,
+            "in_use": in_use == "*",
+            "secured": security not in ("", "--"),
+            "signal": int(signal or 0),
+        }
+        # nmcli repite SSIDs (varios APs): nos quedamos con el de mejor señal.
+        if ssid not in seen or net["signal"] > seen[ssid]["signal"]:
+            net["in_use"] = net["in_use"] or seen.get(ssid, {}).get("in_use", False)
+            seen[ssid] = net
+        elif net["in_use"]:
+            seen[ssid]["in_use"] = True
+    return sorted(seen.values(), key=lambda n: n["signal"], reverse=True)
+
+
+def cmd_wifi(args: argparse.Namespace) -> None:
+    print("Escaneando redes...")
+    networks = _scan_networks()
+    if not networks:
+        sys.exit("No se encontraron redes.")
+
+    saved = _saved_wifi_profiles()
+    for i, net in enumerate(networks, start=1):
+        marks = ("*" if net["in_use"] else " ") + ("s" if net["ssid"] in saved else " ")
+        lock = "🔒" if net["secured"] else "  "
+        print(f"{i:>3}. [{marks}] {lock} {net['signal']:>3}%  {net['ssid']}")
+    print("      (* conectada, s guardada)")
+
+    choice = input("Red a conectar (número, enter cancela): ").strip()
+    if not choice:
+        return
+    try:
+        net = networks[int(choice) - 1]
+    except (ValueError, IndexError):
+        sys.exit("Opción inválida.")
+
+    ssid = net["ssid"]
+    if ssid in saved:
+        sh("nmcli", "connection", "up", "id", ssid)
+    elif net["secured"]:
+        password = getpass.getpass(f"Clave de {ssid}: ")
+        sh("nmcli", "dev", "wifi", "connect", ssid, "password", password)
+    else:
+        sh("nmcli", "dev", "wifi", "connect", ssid)
+    print(f"Conectado a {ssid}. NetworkManager la recuerda para la próxima.")
+
+
+def cmd_wifi_saved(args: argparse.Namespace) -> None:
+    for name in sorted(_saved_wifi_profiles()):
+        print(name)
+
+
+def cmd_wifi_forget(args: argparse.Namespace) -> None:
+    sh("nmcli", "connection", "delete", "id", args.ssid)
+
+
+def cmd_wifi_status(args: argparse.Namespace) -> None:
+    sh("nmcli", "dev", "status")
+
+
+# ---------------------------------------------------------------- sistema
+
+def cmd_clock_set(args: argparse.Namespace) -> None:
+    sh(sys.executable, str(PROJECT_ROOT / "scripts" / "set_clock.py"))
+
+
+def cmd_keyboard(args: argparse.Namespace) -> None:
+    sh(sys.executable, str(PROJECT_ROOT / "scripts" / "set_keyboard_layout.py"), "--layout", args.layout)
+
+
+def cmd_mirrors_update(args: argparse.Namespace) -> None:
+    if not shutil.which("reflector"):
+        sys.exit("reflector no instalado: sudo pacman -S reflector")
+    print(">> Respaldando mirrorlist actual...")
+    sh("sudo", "cp", "/etc/pacman.d/mirrorlist", "/etc/pacman.d/mirrorlist.bak")
+    print(f">> Buscando mirrors ({args.countries}, <{args.age}h, https, por velocidad)...")
+    sh(
+        "sudo", "reflector",
+        "--country", args.countries,
+        "--age", str(args.age),
+        "--protocol", "https",
+        "--sort", "rate",
+        "--latest", "20",
+        "--download-timeout", "10",
+        "--save", "/etc/pacman.d/mirrorlist",
+    )
+    print(">> Refrescando índice de paquetes (pacman -Syy)...")
+    sh("sudo", "pacman", "-Syy")
+    print(">> Mirrors actualizados. Backup en /etc/pacman.d/mirrorlist.bak")
+
+
+def cmd_sddm(args: argparse.Namespace) -> None:
+    if args.sddm_action == "install":
+        sh("sudo", "pacman", "-S", "--needed", "--noconfirm", "sddm")
+    elif args.sddm_action == "enable":
+        sh("sudo", "systemctl", "enable", "sddm.service", "--force")
+    elif args.sddm_action == "start":
+        sh("sudo", "systemctl", "start", "sddm.service")
+
+
+def cmd_bspwm(args: argparse.Namespace) -> None:
+    scripts = PROJECT_ROOT / "scripts"
+    if args.bspwm_action == "bootstrap":
+        cmd_install_core(args)
+        sh(str(scripts / "install_bspwm_session.sh"))
+    elif args.bspwm_action == "install-session":
+        sh(str(scripts / "install_bspwm_session.sh"))
+    elif args.bspwm_action == "check-display":
+        sh(str(scripts / "check_display_stack.sh"))
+    elif args.bspwm_action == "restart":
+        sh(str(scripts / "check_display_stack.sh"), "--quiet")
+        if not shutil.which("bspc"):
+            sys.exit("bspc no encontrado en PATH")
+        sh("bspc", "wm", "-r")
+
+
+def cmd_sxhkd_reload(args: argparse.Namespace) -> None:
+    from src.app.drivers.repositories.programs.hooks import sxhkd_reload
+
+    sxhkd_reload()
+
+
+def cmd_scripts_chmod(args: argparse.Namespace) -> None:
+    for path in (PROJECT_ROOT / "scripts").iterdir():
+        if path.is_file():
+            path.chmod(path.stat().st_mode | 0o111)
+
+
+# ---------------------------------------------------------------- git
+
+def _git_repo_root() -> Path:
+    return Path(capture("git", "rev-parse", "--show-toplevel").strip())
+
+
+def _git_changed_files() -> set[str]:
+    """Archivos modificados/nuevos según git, relativos a la raíz del repo."""
+    out = capture("git", "status", "--porcelain", "-z", "--untracked-files=all")
+    files = set()
+    for entry in out.split("\0"):
+        if len(entry) > 3:
+            files.add(entry[3:])
+    return files
+
+
+def _normalize(token: str, root: Path) -> str | None:
+    """Lleva un token a path relativo a la raíz del repo (absoluto o relativo al cwd)."""
+    try:
+        resolved = Path(token) if os.path.isabs(token) else Path.cwd() / token
+        return str(resolved.resolve().relative_to(root))
+    except (ValueError, OSError):
+        return None
+
+
+def cmd_git_add(args: argparse.Namespace) -> None:
+    """Agrega los paths que aparezcan en un texto (ej: salida de pre-commit).
+
+    No asume prefijos ('reformatted', 'Fixing', etc.): saca todo lo que parezca
+    un path y se queda con los que git reporta como modificados. Acepta paths
+    absolutos, relativos al cwd o relativos a la raíz del repo.
+    """
+    text = " ".join(args.text) if args.text else sys.stdin.read()
+    root = _git_repo_root()
+    changed = _git_changed_files()
+    by_basename: dict[str, list[str]] = {}
+    for path in changed:
+        by_basename.setdefault(os.path.basename(path), []).append(path)
+
+    found: list[str] = []
+    for token in re.findall(r"[\w./@+-]+", text):
+        token = token.strip(".,:;\"'()[]")
+        if not token:
+            continue
+        if token in changed:
+            candidates = [token]
+        elif (rel := _normalize(token, root)) in changed:
+            candidates = [rel]
+        elif "/" not in token:
+            # Nombre suelto: puede matchear varios (ej. __init__.py).
+            candidates = by_basename.get(token, [])
+        else:
+            candidates = []
+        for candidate in candidates:
+            if candidate not in found:
+                found.append(candidate)
+
+    if not found:
+        sys.exit("No se encontró ningún archivo modificado en el texto.")
+
+    sh("git", "-C", str(root), "add", "--", *found)
+    for path in found:
+        print(f"added: {path}")
+
+
+def cmd_self_install(args: argparse.Namespace) -> None:
+    bin_dir = Path.home() / ".local" / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    link = bin_dir / "dot"
+    if link.is_symlink() or link.exists():
+        link.unlink()
+    link.symlink_to(PROJECT_ROOT / "dot")
+    print(f"Symlink creado: {link} -> {PROJECT_ROOT / 'dot'}")
+    if str(bin_dir) not in os.environ.get("PATH", ""):
+        print(f"Agregá {bin_dir} a tu PATH.")
+
+    comp_dir = Path.home() / ".local" / "share" / "bash-completion" / "completions"
+    comp_dir.mkdir(parents=True, exist_ok=True)
+    comp_link = comp_dir / "dot"
+    if comp_link.is_symlink() or comp_link.exists():
+        comp_link.unlink()
+    comp_link.symlink_to(PROJECT_ROOT / "completions" / "dot.bash")
+    print(f"Completado bash: {comp_link} (abrí una terminal nueva para activarlo)")
+
+
+# ---------------------------------------------------------------- parser
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="dot", description="CLI de los dotfiles.")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    for action in ("install", "uninstall", "install-requirement", "uninstall-requirement", "install-files", "uninstall-files"):
+        p = sub.add_parser(action, help=f"{action} de un programa")
+        p.add_argument("program", choices=PROGRAMS)
+        p.set_defaults(func=cmd_program_action, action=action)
+
+    sub.add_parser("install-all", help="instala paquetes+archivos de todos los programas").set_defaults(func=cmd_install_all)
+    sub.add_parser("install-core", help=f"instala {', '.join(CORE_PROGRAMS)}").set_defaults(func=cmd_install_core)
+    p = sub.add_parser("remove-core", help="desinstala los programas core")
+    p.add_argument("--purge", action="store_true", help="también remueve los paquetes (WM_REMOVE_PACKAGES=1)")
+    p.set_defaults(func=cmd_remove_core)
+    sub.add_parser("menu", help="menú interactivo de programas (requiere questionary)").set_defaults(func=cmd_menu)
+
+    p = sub.add_parser("wifi", help="conectar a una red wifi (interactivo)")
+    wsub = p.add_subparsers(dest="wifi_command")
+    p.set_defaults(func=cmd_wifi)
+    wsub.add_parser("saved", help="redes guardadas").set_defaults(func=cmd_wifi_saved)
+    wf = wsub.add_parser("forget", help="olvidar una red guardada")
+    wf.add_argument("ssid")
+    wf.set_defaults(func=cmd_wifi_forget)
+    wsub.add_parser("status", help="estado de los dispositivos de red").set_defaults(func=cmd_wifi_status)
+
+    sub.add_parser("clock-set", help="configura el reloj").set_defaults(func=cmd_clock_set)
+    p = sub.add_parser("keyboard", help="configura el layout de teclado")
+    p.add_argument("layout", nargs="?", default="latam")
+    p.set_defaults(func=cmd_keyboard)
+
+    p = sub.add_parser("mirrors-update", help="refresca mirrors de pacman con reflector")
+    p.add_argument("--countries", default="Chile,Brazil,Argentina")
+    p.add_argument("--age", type=int, default=12)
+    p.set_defaults(func=cmd_mirrors_update)
+
+    p = sub.add_parser("sddm", help="instalar/habilitar/arrancar sddm")
+    p.add_argument("sddm_action", choices=["install", "enable", "start"])
+    p.set_defaults(func=cmd_sddm)
+
+    p = sub.add_parser("bspwm", help="acciones de bspwm")
+    p.add_argument("bspwm_action", choices=["bootstrap", "install-session", "check-display", "restart"])
+    p.set_defaults(func=cmd_bspwm)
+
+    sub.add_parser("sxhkd-reload", help="recarga la config de sxhkd").set_defaults(func=cmd_sxhkd_reload)
+    sub.add_parser("scripts-chmod", help="da permisos de ejecución a scripts/").set_defaults(func=cmd_scripts_chmod)
+
+    p = sub.add_parser("git", help="helpers de git")
+    gsub = p.add_subparsers(dest="git_command", required=True)
+    ga = gsub.add_parser("add", help="git add de los paths que aparezcan en un texto")
+    ga.add_argument("text", nargs="*", help="texto (ej: salida del pre-commit); vacío lee stdin")
+    ga.set_defaults(func=cmd_git_add)
+
+    p = sub.add_parser("self", help="gestión de la propia CLI")
+    p.add_argument("self_action", choices=["install"])
+    p.set_defaults(func=cmd_self_install)
+
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    try:
+        args.func(args)
+    except subprocess.CalledProcessError as exc:
+        sys.exit(exc.returncode)
+    except KeyboardInterrupt:
+        sys.exit(130)
+
+
+if __name__ == "__main__":
+    main()

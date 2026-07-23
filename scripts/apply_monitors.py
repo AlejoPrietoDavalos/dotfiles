@@ -2,11 +2,11 @@
 """Apply monitor layout for bspwm using the core use case."""
 
 from src.app.drivers.repositories.logs import ConfigureLoggingRepository
-from src.app.drivers.repositories.programs._implementations.bspwm_repository import (
-    BspwmRepository,
+from src.app.drivers.repositories.system.display_repository import (
+    XrandrDisplayRepository,
 )
-from src.app.drivers.repositories.programs._implementations.xrandr_repository import (
-    XrandrRepository,
+from src.app.drivers.repositories.system.window_manager_repository import (
+    BspwmWindowManagerRepository,
 )
 from src.core.use_cases.apply_monitor_layout import ApplyMonitorLayoutService
 
@@ -17,8 +17,8 @@ def main() -> int:
     configure_logging_repo = ConfigureLoggingRepository()
     configure_logging_repo.configure(log_filename="apply_monitors.log")
     use_case = ApplyMonitorLayoutService(
-        xrandr_repo=XrandrRepository(),
-        bspwm_repo=BspwmRepository(),
+        display_repo=XrandrDisplayRepository(),
+        window_manager_repo=BspwmWindowManagerRepository(),
         reverse_monitor_layout=REVERSE_MONITOR_LAYOUT,
     )
     use_case.run()
