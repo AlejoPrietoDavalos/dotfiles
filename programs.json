@@ -110,6 +110,13 @@
     ],
     "files": { "src": "thunar", "dst": "~/.config/Thunar" }
   },
+  "theme-dark": {
+    "packages": [
+      { "manager": "pacman", "names": ["xsettingsd", "qt5ct", "adwaita-icon-theme"] },
+      { "manager": "apt", "names": ["xsettingsd", "qt5ct", "adwaita-icon-theme"] }
+    ],
+    "files": { "src": "theme", "dst": "~/.config" }
+  },
   "vscode": {
     "packages": [{ "manager": "yay", "names": ["code"] }],
     "files": { "src": "vscode", "dst": "~/.config/Code/User" },
