@@ -30,3 +30,14 @@ class PkgManagerFactoryRepository(CorePkgManagerFactoryRepository):
         for pkg_spec in pkgs.pkg_specs:
             repo = self._manager2repo(pkg_spec.manager)
             repo.uninstall(pkg_spec.names, program_name=program_name)
+
+    def is_installed(self, pkgs: Packages) -> bool | None:
+        applicable = False
+        for pkg_spec in pkgs.pkg_specs:
+            repo = self._manager2repo(pkg_spec.manager)
+            if not repo.manager_exists():
+                continue
+            applicable = True
+            if not repo.is_installed(pkg_spec.names):
+                return False
+        return True if applicable else None

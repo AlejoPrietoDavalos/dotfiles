@@ -13,3 +13,13 @@ class CoreBasePkgRepository(ABC):
     @abstractmethod
     def uninstall(self, pkg_names: list[str], program_name: str | None = None) -> None:
         ...
+
+    @abstractmethod
+    def manager_exists(self) -> bool:
+        """True si el package manager está disponible en esta máquina."""
+        ...
+
+    @abstractmethod
+    def is_installed(self, pkg_names: list[str]) -> bool:
+        """True si todos los paquetes están instalados."""
+        ...

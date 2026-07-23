@@ -230,6 +230,60 @@ def cmd_scripts_chmod(args: argparse.Namespace) -> None:
             path.chmod(path.stat().st_mode | 0o111)
 
 
+# ---------------------------------------------------------------- estado
+
+def _program_states() -> tuple[list[str], list[str], list[str]]:
+    """Consulta el sistema en vivo. Devuelve (instalados, faltan, no_aplica)."""
+    from src.app.drivers.repositories.programs import ProgramLoaderRepository
+    from src.app.drivers.repositories.pkg_manager import PkgManagerFactoryRepository
+
+    loader = ProgramLoaderRepository()
+    factory = PkgManagerFactoryRepository()
+    installed: list[str] = []
+    missing: list[str] = []
+    not_applicable: list[str] = []
+    for name in loader.list_programs():
+        cfg = loader.get_config(name)
+        state = factory.is_installed(cfg.package_dependencies)
+        if state is True:
+            installed.append(name)
+        elif state is False:
+            missing.append(name)
+        else:
+            not_applicable.append(name)
+    return installed, missing, not_applicable
+
+
+def cmd_status(args: argparse.Namespace) -> None:
+    installed, missing, not_applicable = _program_states()
+    for name in installed:
+        print(f"  [x] {name}")
+    for name in missing:
+        print(f"  [ ] {name}")
+    for name in not_applicable:
+        print(f"  [-] {name} (sin manager para esta máquina)")
+    print(f"\n{len(installed)} instalados, {len(missing)} faltan, {len(not_applicable)} n/a")
+
+
+def cmd_update(args: argparse.Namespace) -> None:
+    """Sincroniza: git pull en la rama actual + refresca lo instalado.
+
+    El refresh reinstala (idempotente) los programas ya presentes, copiando
+    las configs actualizadas y corriendo sus hooks.
+    """
+    sh("git", "-C", str(PROJECT_ROOT), "pull", "--ff-only")
+    if args.pull_only:
+        return
+    installed, _, _ = _program_states()
+    if not installed:
+        print("No hay programas instalados para refrescar.")
+        return
+    actions = build_program_actions()
+    for name in installed:
+        actions.run(action="install", program=name)
+    print(f"\nRefrescados {len(installed)} programas: {', '.join(installed)}")
+
+
 # ---------------------------------------------------------------- git
 
 def _git_repo_root() -> Path:
@@ -362,6 +416,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("sxhkd-reload", help="recarga la config de sxhkd").set_defaults(func=cmd_sxhkd_reload)
     sub.add_parser("scripts-chmod", help="da permisos de ejecución a scripts/").set_defaults(func=cmd_scripts_chmod)
+
+    sub.add_parser("status", help="muestra qué programas del catálogo están instalados (en vivo)").set_defaults(func=cmd_status)
+
+    p = sub.add_parser("update", help="git pull + refresca (reinstala) lo ya instalado")
+    p.add_argument("--pull-only", action="store_true", help="solo hace git pull, sin reinstalar")
+    p.set_defaults(func=cmd_update)
 
     p = sub.add_parser("git", help="helpers de git")
     gsub = p.add_subparsers(dest="git_command", required=True)
