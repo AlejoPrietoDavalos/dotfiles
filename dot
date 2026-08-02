@@ -19,8 +19,31 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-PROGRAMS = sorted(json.loads((PROJECT_ROOT / "programs.json").read_text()))
-CORE_PROGRAMS = ["bspwm", "sxhkd", "polybar", "picom"]
+_PROGRAMS_RAW = json.loads((PROJECT_ROOT / "programs.json").read_text())
+PROGRAMS = sorted(_PROGRAMS_RAW)
+
+# Las barras (`provides: "bar"`) son alternativas EXCLUYENTES del mismo slot: no pueden
+# convivir porque las dos reservan struts y bspwm restaría el espacio dos veces.
+BAR_PROGRAMS = sorted(
+    name for name, cfg in _PROGRAMS_RAW.items() if cfg.get("provides") == "bar"
+)
+
+# `install-core` instala UNA barra, no todas: cuál lo decide el estado de la máquina
+# (~/.config/dotfiles/state.json), con fallback a polybar. Ver ManageBarService.
+CORE_PROGRAMS_BASE = ["bspwm", "sxhkd", "picom"]
+
+
+def build_bar_service():
+    # El wiring vive en el factory, compartido con `scripts/launch_bar.py`: el CLI y el
+    # arranque de sesión tienen que armar el MISMO grafo.
+    from src.app.drivers.repositories.bar import build_manage_bar_service
+
+    return build_manage_bar_service()
+
+
+def core_programs() -> list[str]:
+    """Los programas core, con la barra activa resuelta en runtime."""
+    return [*CORE_PROGRAMS_BASE, build_bar_service().resolve().name]
 
 
 def sh(*cmd: str, check: bool = True) -> int:
@@ -58,7 +81,7 @@ def cmd_install_all(args: argparse.Namespace) -> None:
 
 def cmd_install_core(args: argparse.Namespace) -> None:
     actions = build_program_actions()
-    for program in CORE_PROGRAMS:
+    for program in core_programs():
         actions.run(action="install", program=program)
 
 
@@ -66,8 +89,42 @@ def cmd_remove_core(args: argparse.Namespace) -> None:
     if args.purge:
         os.environ["WM_REMOVE_PACKAGES"] = "1"
     actions = build_program_actions()
-    for program in reversed(CORE_PROGRAMS):
+    for program in reversed(core_programs()):
         actions.run(action="uninstall", program=program)
+
+
+# ---------------------------------------------------------------- barra
+
+def cmd_bar_list(args: argparse.Namespace) -> None:
+    for bar in build_bar_service().list_status():
+        active = "*" if bar.selected else " "
+        installed = "instalada" if bar.available else "no instalada"
+        print(f" {active} {bar.name:10} {installed:14} [{', '.join(bar.managers) or '-'}]")
+
+
+def cmd_bar_status(args: argparse.Namespace) -> None:
+    print(build_bar_service().resolve().name)
+
+
+def cmd_bar_use(args: argparse.Namespace) -> None:
+    from src.core.use_cases.manage_bar import BarNotAvailableError
+
+    try:
+        bar = build_bar_service().use(args.bar, restart=not args.no_restart)
+    except BarNotAvailableError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    outcome = "seleccionada" if args.no_restart else "activa"
+    print(f"barra {outcome}: {bar.name}")
+
+
+def cmd_bar_restart(args: argparse.Namespace) -> None:
+    print(f"barra activa: {build_bar_service().launch_selected().name}")
+
+
+def cmd_bar_stop(args: argparse.Namespace) -> None:
+    build_bar_service().stop_all()
+    print("barras detenidas")
 
 
 def cmd_menu(args: argparse.Namespace) -> None:
@@ -381,7 +438,10 @@ def build_parser() -> argparse.ArgumentParser:
         p.set_defaults(func=cmd_program_action, action=action)
 
     sub.add_parser("install-all", help="instala paquetes+archivos de todos los programas").set_defaults(func=cmd_install_all)
-    sub.add_parser("install-core", help=f"instala {', '.join(CORE_PROGRAMS)}").set_defaults(func=cmd_install_core)
+    sub.add_parser(
+        "install-core",
+        help=f"instala {', '.join(CORE_PROGRAMS_BASE)} + la barra activa ({'/'.join(BAR_PROGRAMS)})",
+    ).set_defaults(func=cmd_install_core)
     p = sub.add_parser("remove-core", help="desinstala los programas core")
     p.add_argument("--purge", action="store_true", help="también remueve los paquetes (WM_REMOVE_PACKAGES=1)")
     p.set_defaults(func=cmd_remove_core)
@@ -413,6 +473,18 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("bspwm", help="acciones de bspwm")
     p.add_argument("bspwm_action", choices=["bootstrap", "install-session", "check-display", "restart"])
     p.set_defaults(func=cmd_bspwm)
+
+    p = sub.add_parser("bar", help=f"barra de estado ({'/'.join(BAR_PROGRAMS)})")
+    bsub = p.add_subparsers(dest="bar_command")
+    p.set_defaults(func=cmd_bar_list)
+    bsub.add_parser("list", help="barras conocidas y cuál está activa").set_defaults(func=cmd_bar_list)
+    bsub.add_parser("status", help="nombre de la barra activa").set_defaults(func=cmd_bar_status)
+    bu = bsub.add_parser("use", help="cambia la barra activa y la relanza")
+    bu.add_argument("bar", choices=BAR_PROGRAMS)
+    bu.add_argument("--no-restart", action="store_true", help="solo guarda la elección, sin relanzar")
+    bu.set_defaults(func=cmd_bar_use)
+    bsub.add_parser("restart", help="relanza la barra activa").set_defaults(func=cmd_bar_restart)
+    bsub.add_parser("stop", help="para todas las barras").set_defaults(func=cmd_bar_stop)
 
     sub.add_parser("sxhkd-reload", help="recarga la config de sxhkd").set_defaults(func=cmd_sxhkd_reload)
     sub.add_parser("scripts-chmod", help="da permisos de ejecución a scripts/").set_defaults(func=cmd_scripts_chmod)
