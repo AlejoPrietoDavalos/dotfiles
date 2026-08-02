@@ -50,6 +50,8 @@
     ]
   },
   "polybar": {
+    "provides": "bar",
+    "bar": { "binary": "polybar", "launch": "launch.sh", "stop": "stop.sh" },
     "packages": [
       { "manager": "pacman", "names": ["polybar", "networkmanager", "libnotify"] },
       { "manager": "apt", "names": ["polybar", "network-manager", "libnotify-bin"] }

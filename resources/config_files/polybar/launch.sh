@@ -1,12 +1,10 @@
 #!/bin/bash
+# Estrategia de ARRANQUE de polybar: una instancia por monitor conectado.
+# La parada vive en stop.sh; acá solo se llama para no duplicar instancias.
 
-# Terminate already running bar instances
-# If all your bars have ipc enabled, you can use
-polybar-msg cmd quit
-# Otherwise you can use the nuclear option:
-killall -q polybar
+"$(dirname "$0")/stop.sh"
 
-if type "xrandr"; then
+if command -v xrandr >/dev/null 2>&1; then
     for m in $(xrandr --query | grep " connected" | cut -d" " -f1); do
         MONITOR=$m polybar example &
     done
