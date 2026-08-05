@@ -19,8 +19,31 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-PROGRAMS = sorted(json.loads((PROJECT_ROOT / "programs.json").read_text()))
-CORE_PROGRAMS = ["bspwm", "sxhkd", "polybar", "picom"]
+_PROGRAMS_RAW = json.loads((PROJECT_ROOT / "programs.json").read_text())
+PROGRAMS = sorted(_PROGRAMS_RAW)
+
+# Las barras (`provides: "bar"`) son alternativas EXCLUYENTES del mismo slot: no pueden
+# convivir porque las dos reservan struts y bspwm restaría el espacio dos veces.
+BAR_PROGRAMS = sorted(
+    name for name, cfg in _PROGRAMS_RAW.items() if cfg.get("provides") == "bar"
+)
+
+# `install-core` instala UNA barra, no todas: cuál lo decide el estado de la máquina
+# (~/.config/dotfiles/state.json), con fallback a polybar. Ver ManageBarService.
+CORE_PROGRAMS_BASE = ["bspwm", "sxhkd", "picom"]
+
+
+def build_bar_service():
+    # El wiring vive en el factory, compartido con `scripts/launch_bar.py`: el CLI y el
+    # arranque de sesión tienen que armar el MISMO grafo.
+    from src.app.drivers.repositories.bar import build_manage_bar_service
+
+    return build_manage_bar_service()
+
+
+def core_programs() -> list[str]:
+    """Los programas core, con la barra activa resuelta en runtime."""
+    return [*CORE_PROGRAMS_BASE, build_bar_service().resolve().name]
 
 
 def sh(*cmd: str, check: bool = True) -> int:
@@ -49,7 +72,12 @@ def build_program_actions():
 # ---------------------------------------------------------------- programas
 
 def cmd_program_action(args: argparse.Namespace) -> None:
-    build_program_actions().run(action=args.action, program=args.program)
+    # Varios programas en una sola invocación: `dot install-files bspwm sxhkd`. Se instalan
+    # en el orden dado, no en paralelo — algunos tienen hooks que asumen que el anterior ya
+    # terminó (sxhkd_reload, por ejemplo).
+    actions = build_program_actions()
+    for program in args.program:
+        actions.run(action=args.action, program=program)
 
 
 def cmd_install_all(args: argparse.Namespace) -> None:
@@ -58,7 +86,7 @@ def cmd_install_all(args: argparse.Namespace) -> None:
 
 def cmd_install_core(args: argparse.Namespace) -> None:
     actions = build_program_actions()
-    for program in CORE_PROGRAMS:
+    for program in core_programs():
         actions.run(action="install", program=program)
 
 
@@ -66,8 +94,318 @@ def cmd_remove_core(args: argparse.Namespace) -> None:
     if args.purge:
         os.environ["WM_REMOVE_PACKAGES"] = "1"
     actions = build_program_actions()
-    for program in reversed(CORE_PROGRAMS):
+    for program in reversed(core_programs()):
         actions.run(action="uninstall", program=program)
+
+
+# ---------------------------------------------------------------- barra
+
+def cmd_bar_list(args: argparse.Namespace) -> None:
+    for bar in build_bar_service().list_status():
+        active = "*" if bar.selected else " "
+        installed = "instalada" if bar.available else "no instalada"
+        print(f" {active} {bar.name:10} {installed:14} [{', '.join(bar.managers) or '-'}]")
+
+
+def cmd_bar_status(args: argparse.Namespace) -> None:
+    print(build_bar_service().resolve().name)
+
+
+def cmd_bar_use(args: argparse.Namespace) -> None:
+    from src.core.use_cases.manage_bar import BarNotAvailableError
+
+    try:
+        bar = build_bar_service().use(args.bar, restart=not args.no_restart)
+    except BarNotAvailableError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    outcome = "seleccionada" if args.no_restart else "activa"
+    print(f"barra {outcome}: {bar.name}")
+
+
+def cmd_bar_restart(args: argparse.Namespace) -> None:
+    print(f"barra activa: {build_bar_service().launch_selected().name}")
+
+
+def cmd_bar_stop(args: argparse.Namespace) -> None:
+    build_bar_service().stop_all()
+    print("barras detenidas")
+
+
+# ---------------------------------------------------------------- target
+
+def build_target_repo():
+    from src.app.drivers.repositories.target import FileTargetRepository
+
+    return FileTargetRepository()
+
+
+# Palabras que NO son un host sino una acción. El costo de esto es que no podés tener un
+# target llamado literalmente "clear" o "copy"; a cambio, setear —que es lo que se hace
+# veinte veces por sesión— no lleva subcomando: `dot target 10.10.11.23`.
+_TARGET_ACTIONS = ("clear", "copy")
+
+
+def _target_show() -> None:
+    target = build_target_repo().get()
+    if target is None:
+        print("sin target")
+        return
+    print(f"{target.host}  {target.label}".rstrip())
+
+
+def _target_clear() -> None:
+    build_target_repo().clear()
+    print("target borrado")
+
+
+def _target_copy() -> None:
+    """Copia el host al portapapeles. Es lo que más se repite durante un engagement."""
+    target = build_target_repo().get()
+    if target is None:
+        sys.exit("sin target")
+    if shutil.which("xclip") is None:
+        sys.exit("falta xclip (dot install xclip)")
+    subprocess.run(["xclip", "-selection", "clipboard"], input=target.host, text=True, check=True)
+    print(target.host)
+
+
+def _target_set(host: str, name: list[str] | None) -> None:
+    from src.core.entities.target import Target
+
+    try:
+        target = Target(host=host, label=" ".join(name or []))
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    build_target_repo().set(target)
+    print(f"target: {target.host}" + (f" ({target.label})" if target.label else ""))
+
+
+def cmd_target(args: argparse.Namespace) -> None:
+    if args.host is None:
+        _target_show()
+    elif args.host == "clear":
+        _target_clear()
+    elif args.host == "copy":
+        _target_copy()
+    else:
+        _target_set(args.host, args.name)
+
+
+# ---------------------------------------------------------------- activate-linux
+
+# La marca de agua de Windows sin activar, de chiste. Es un widget de eww, así que solo
+# aplica cuando la barra activa es eww — con polybar no hay daemon donde abrirla.
+_ACTIVATE_LINUX_FLAG = Path.home() / ".config" / "dotfiles" / "activate-linux"
+_EWW_CONFIG = Path.home() / ".config" / "eww"
+
+
+def _eww(*args_eww: str) -> int:
+    return subprocess.run(
+        ["eww", "--config", str(_EWW_CONFIG), *args_eww],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+    ).returncode
+
+
+def _monitors() -> list[str]:
+    """Los monitores según bspwm, no xrandr: bspwm ya fijó el orden en apply_monitors."""
+    try:
+        return capture("bspc", "query", "-M", "--names").split()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
+
+
+def _activate_linux_open() -> None:
+    for monitor in _monitors():
+        _eww("open", "activate-linux", "--id", f"activate-linux-{monitor}",
+             "--arg", f"monitor={monitor}")
+
+
+def _activate_linux_close() -> None:
+    for monitor in _monitors():
+        _eww("close", f"activate-linux-{monitor}")
+
+
+def cmd_activate_linux(args: argparse.Namespace) -> None:
+    action = args.activate_linux_action or "toggle"
+
+    if action == "status":
+        print("on" if _ACTIVATE_LINUX_FLAG.exists() else "off")
+        return
+
+    if action == "toggle":
+        action = "off" if _ACTIVATE_LINUX_FLAG.exists() else "on"
+
+    if action == "on":
+        # El flag es lo que la hace sobrevivir al reinicio: lo lee el launch.sh de eww.
+        _ACTIVATE_LINUX_FLAG.parent.mkdir(parents=True, exist_ok=True)
+        _ACTIVATE_LINUX_FLAG.touch()
+        _activate_linux_open()
+    else:
+        _ACTIVATE_LINUX_FLAG.unlink(missing_ok=True)
+        _activate_linux_close()
+    print(f"activate-linux: {action}")
+
+
+# ---------------------------------------------------------------- clipboard
+
+# Slots fijos, aparte del historial de clipmenu. Son dos ideas distintas:
+#   historial  -> cronológico, se llena solo, lo viejo se cae (clipmenu, super+v)
+#   slots      -> los elegís vos y NO se caen nunca (super+ctrl+N para guardar)
+# Los slots existen porque en un engagement hay cuatro o cinco textos que se pegan todo el
+# tiempo —tu IP de VPN, un payload, un hash— y en un historial de 25 entradas se hunden.
+_CLIP_SLOTS_DIR = Path.home() / ".config" / "dotfiles" / "clips"
+
+
+# Los diez slots del portapapeles, en el orden del teclado: 1..9 y después 0.
+#
+# NO hay historial automático a propósito. Guardar cada `ctrl+c` significa escribir en disco,
+# en texto plano, todo lo que copiás —contraseñas, hashes, tokens— para que el 99% sea ruido
+# que nunca vas a volver a mirar. Acá guardás solo lo que decidís guardar.
+_CLIP_ORDER = [str(n) for n in range(1, 10)] + ["0"]
+
+
+def _clipboard():
+    from src.app.drivers.repositories.system.clipboard_repository import (
+        XclipClipboardRepository,
+    )
+
+    if shutil.which("xclip") is None:
+        sys.exit("falta xclip (dot install xclip)")
+    return XclipClipboardRepository()
+
+
+def _clipboard_write(text: str) -> None:
+    _clipboard().write_text(text)
+
+
+def _slot_path(number: str) -> Path:
+    """El archivo de texto del slot."""
+    return _CLIP_SLOTS_DIR / str(number)
+
+
+def _slot_png(number: str) -> Path:
+    """El archivo de imagen del slot. Un slot es texto O imagen, nunca las dos."""
+    return _CLIP_SLOTS_DIR / f"{number}.png"
+
+
+def _slot_preview(number: str) -> str:
+    """Lo que se ve en el menú para ese slot. Vacío si el slot está libre."""
+    png, txt = _slot_png(number), _slot_path(number)
+
+    # Las imágenes se muestran solo como "imagen · tamaño". No se guarda una etiqueta
+    # elegida por el usuario: sería otro archivo de texto libre en disco que además se
+    # renderiza en el menú, y no aporta nada que el número del slot no diga ya.
+    if png.is_file():
+        size = png.stat().st_size
+        unit = f"{size / 1024:.0f} KB" if size >= 1024 else f"{size} B"
+        return f"\uf03e imagen · {unit}"
+    if txt.is_file():
+        content = txt.read_text(encoding="utf-8", errors="replace").strip()
+        return content.splitlines()[0][:80] if content else ""
+    return ""
+
+
+def _slot_clear(number: str) -> None:
+    for path in (_slot_path(number), _slot_png(number)):
+        path.unlink(missing_ok=True)
+
+
+def cmd_clip(args: argparse.Namespace) -> None:
+    action = args.clip_action
+
+    if action == "clear":
+        # Vacía TODOS los slots. Existe porque ahí terminan credenciales de labs y tokens
+        # sin que uno lo decida, y en texto plano: tener el borrado a un comando es la
+        # diferencia entre limpiarlo y no hacerlo nunca.
+        shutil.rmtree(_CLIP_SLOTS_DIR, ignore_errors=True)
+        print("slots borrados")
+        return
+
+    if action == "save":
+        clipboard = _clipboard()
+        _CLIP_SLOTS_DIR.mkdir(parents=True, exist_ok=True)
+        _slot_clear(args.number)      # un slot es texto O imagen, no restos de las dos
+
+        # La imagen se intenta PRIMERO: una captura ofrece solo `image/png` y pedirle texto
+        # devuelve vacío, que era justamente el motivo por el que no guardaba nada.
+        if clipboard.save_png_to(_slot_png(args.number)):
+            print(f"slot {args.number}: {_slot_preview(args.number)}")
+            return
+
+        text = clipboard.read_text()
+        if not text:
+            sys.exit("el portapapeles está vacío (ni texto ni imagen)")
+        _slot_path(args.number).write_text(text, encoding="utf-8")
+        print(f"slot {args.number}: {_slot_preview(args.number)}")
+        return
+
+    if action == "get":
+        png = _slot_png(args.number)
+        if png.is_file():
+            _clipboard().copy_png_to_clipboard(png)
+            print(f"slot {args.number} → portapapeles: {_slot_preview(args.number)}")
+            return
+        path = _slot_path(args.number)
+        if not path.is_file():
+            sys.exit(f"slot {args.number} vacío")
+        _clipboard_write(path.read_text(encoding="utf-8"))
+        print(f"slot {args.number} → portapapeles: {_slot_preview(args.number)}")
+        return
+
+    if action == "list":
+        if not _CLIP_SLOTS_DIR.is_dir():
+            print("sin slots")
+            return
+        for number in _CLIP_ORDER:
+            preview = _slot_preview(number)
+            if preview:
+                print(f"  {number}  {preview}")
+        return
+
+    if action == "drop":
+        _slot_clear(args.number)
+        print(f"slot {args.number} borrado")
+        return
+
+    if action == "menu":
+        _clip_menu()
+        return
+
+    # status
+    used = [n for n in _CLIP_ORDER if _slot_preview(n)]
+    print(f"slots usados: {', '.join(used) if used else 'ninguno'} ({len(used)}/10)")
+
+
+def _clip_menu() -> None:
+    """Los diez slots, siempre los diez, en el orden del teclado.
+
+    Se muestran también los vacíos: la lista tiene posiciones FIJAS, así que con el uso
+    aprendés dónde está cada cosa y terminás yendo directo con `super+ctrl+v` sin abrir el
+    menú. Si la lista se acortara al haber huecos, cada slot cambiaría de lugar según qué
+    hay guardado y esa memoria no se formaría nunca.
+    """
+    if shutil.which("rofi") is None:
+        sys.exit("falta rofi (dot install rofi)")
+
+    rows = []
+    for number in _CLIP_ORDER:
+        rows.append(f"{number}. {_slot_preview(number)}")
+
+    chosen = subprocess.run(
+        ["rofi", "-dmenu", "-i", "-p", "clip", "-format", "s"],
+        input="\n".join(rows), capture_output=True, text=True, check=False,
+    ).stdout.strip("\n")
+
+    if not chosen:
+        return
+
+    number = chosen.split(".", 1)[0].strip()
+    if _slot_png(number).is_file():
+        _clipboard().copy_png_to_clipboard(_slot_png(number))
+    elif _slot_path(number).is_file():
+        _clipboard_write(_slot_path(number).read_text(encoding="utf-8"))
 
 
 def cmd_menu(args: argparse.Namespace) -> None:
@@ -230,6 +568,60 @@ def cmd_scripts_chmod(args: argparse.Namespace) -> None:
             path.chmod(path.stat().st_mode | 0o111)
 
 
+# ---------------------------------------------------------------- estado
+
+def _program_states() -> tuple[list[str], list[str], list[str]]:
+    """Consulta el sistema en vivo. Devuelve (instalados, faltan, no_aplica)."""
+    from src.app.drivers.repositories.programs import ProgramLoaderRepository
+    from src.app.drivers.repositories.pkg_manager import PkgManagerFactoryRepository
+
+    loader = ProgramLoaderRepository()
+    factory = PkgManagerFactoryRepository()
+    installed: list[str] = []
+    missing: list[str] = []
+    not_applicable: list[str] = []
+    for name in loader.list_programs():
+        cfg = loader.get_config(name)
+        state = factory.is_installed(cfg.package_dependencies)
+        if state is True:
+            installed.append(name)
+        elif state is False:
+            missing.append(name)
+        else:
+            not_applicable.append(name)
+    return installed, missing, not_applicable
+
+
+def cmd_status(args: argparse.Namespace) -> None:
+    installed, missing, not_applicable = _program_states()
+    for name in installed:
+        print(f"  [x] {name}")
+    for name in missing:
+        print(f"  [ ] {name}")
+    for name in not_applicable:
+        print(f"  [-] {name} (sin manager para esta máquina)")
+    print(f"\n{len(installed)} instalados, {len(missing)} faltan, {len(not_applicable)} n/a")
+
+
+def cmd_update(args: argparse.Namespace) -> None:
+    """Sincroniza: git pull en la rama actual + refresca lo instalado.
+
+    El refresh reinstala (idempotente) los programas ya presentes, copiando
+    las configs actualizadas y corriendo sus hooks.
+    """
+    sh("git", "-C", str(PROJECT_ROOT), "pull", "--ff-only")
+    if args.pull_only:
+        return
+    installed, _, _ = _program_states()
+    if not installed:
+        print("No hay programas instalados para refrescar.")
+        return
+    actions = build_program_actions()
+    for name in installed:
+        actions.run(action="install", program=name)
+    print(f"\nRefrescados {len(installed)} programas: {', '.join(installed)}")
+
+
 # ---------------------------------------------------------------- git
 
 def _git_repo_root() -> Path:
@@ -322,12 +714,15 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     for action in ("install", "uninstall", "install-requirement", "uninstall-requirement", "install-files", "uninstall-files"):
-        p = sub.add_parser(action, help=f"{action} de un programa")
-        p.add_argument("program", choices=PROGRAMS)
+        p = sub.add_parser(action, help=f"{action} de uno o varios programas")
+        p.add_argument("program", nargs="+", choices=PROGRAMS, metavar="program")
         p.set_defaults(func=cmd_program_action, action=action)
 
     sub.add_parser("install-all", help="instala paquetes+archivos de todos los programas").set_defaults(func=cmd_install_all)
-    sub.add_parser("install-core", help=f"instala {', '.join(CORE_PROGRAMS)}").set_defaults(func=cmd_install_core)
+    sub.add_parser(
+        "install-core",
+        help=f"instala {', '.join(CORE_PROGRAMS_BASE)} + la barra activa ({'/'.join(BAR_PROGRAMS)})",
+    ).set_defaults(func=cmd_install_core)
     p = sub.add_parser("remove-core", help="desinstala los programas core")
     p.add_argument("--purge", action="store_true", help="también remueve los paquetes (WM_REMOVE_PACKAGES=1)")
     p.set_defaults(func=cmd_remove_core)
@@ -360,8 +755,43 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("bspwm_action", choices=["bootstrap", "install-session", "check-display", "restart"])
     p.set_defaults(func=cmd_bspwm)
 
+    p = sub.add_parser("bar", help=f"barra de estado ({'/'.join(BAR_PROGRAMS)})")
+    bsub = p.add_subparsers(dest="bar_command")
+    p.set_defaults(func=cmd_bar_list)
+    bsub.add_parser("list", help="barras conocidas y cuál está activa").set_defaults(func=cmd_bar_list)
+    bsub.add_parser("status", help="nombre de la barra activa").set_defaults(func=cmd_bar_status)
+    bu = bsub.add_parser("use", help="cambia la barra activa y la relanza")
+    bu.add_argument("bar", choices=BAR_PROGRAMS)
+    bu.add_argument("--no-restart", action="store_true", help="solo guarda la elección, sin relanzar")
+    bu.set_defaults(func=cmd_bar_use)
+    bsub.add_parser("restart", help="relanza la barra activa").set_defaults(func=cmd_bar_restart)
+    bsub.add_parser("stop", help="para todas las barras").set_defaults(func=cmd_bar_stop)
+
+    p = sub.add_parser("target", help="máquina objetivo del engagement (se ve en la barra)")
+    p.add_argument("host", nargs="?",
+                   help="IP o hostname (10.10.11.23, web.htb) · 'clear' borra · 'copy' copia · sin argumento muestra")
+    p.add_argument("--name", nargs="*", help="nombre para reconocerla (ej: Two Million)")
+    p.set_defaults(func=cmd_target)
+
+    p = sub.add_parser("activate-linux", help="marca de agua 'Activate Linux' (solo con eww)")
+    p.add_argument("activate_linux_action", nargs="?", choices=["on", "off", "toggle", "status"],
+                   help="sin argumento: toggle")
+    p.set_defaults(func=cmd_activate_linux)
+
+    p = sub.add_parser("clip", help="portapapeles: historial (clipmenu) y slots fijos")
+    p.add_argument("clip_action", nargs="?", default="status",
+                   choices=["status", "clear", "save", "get", "list", "drop", "menu"])
+    p.add_argument("number", nargs="?", help="número de slot (para save/get/drop)")
+    p.set_defaults(func=cmd_clip)
+
     sub.add_parser("sxhkd-reload", help="recarga la config de sxhkd").set_defaults(func=cmd_sxhkd_reload)
     sub.add_parser("scripts-chmod", help="da permisos de ejecución a scripts/").set_defaults(func=cmd_scripts_chmod)
+
+    sub.add_parser("status", help="muestra qué programas del catálogo están instalados (en vivo)").set_defaults(func=cmd_status)
+
+    p = sub.add_parser("update", help="git pull + refresca (reinstala) lo ya instalado")
+    p.add_argument("--pull-only", action="store_true", help="solo hace git pull, sin reinstalar")
+    p.set_defaults(func=cmd_update)
 
     p = sub.add_parser("git", help="helpers de git")
     gsub = p.add_subparsers(dest="git_command", required=True)

@@ -8,7 +8,8 @@ _dot() {
 
   local commands="install uninstall install-requirement uninstall-requirement \
 install-files uninstall-files install-all install-core remove-core menu wifi \
-clock-set keyboard mirrors-update sddm bspwm sxhkd-reload scripts-chmod self"
+clock-set keyboard mirrors-update sddm bspwm bar target activate-linux clip \
+sxhkd-reload scripts-chmod self"
 
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=($(compgen -W "$commands" -- "$cur"))
@@ -35,8 +36,30 @@ clock-set keyboard mirrors-update sddm bspwm sxhkd-reload scripts-chmod self"
     sddm)
       COMPREPLY=($(compgen -W "install enable start" -- "$cur"))
       ;;
+    target)
+      # Solo las palabras reservadas: el host lo escribe el usuario, no hay nada que sugerir.
+      COMPREPLY=($(compgen -W "clear copy --name" -- "$cur"))
+      ;;
+    activate-linux)
+      COMPREPLY=($(compgen -W "on off toggle status" -- "$cur"))
+      ;;
+    clip)
+      COMPREPLY=($(compgen -W "status clear" -- "$cur"))
+      ;;
     bspwm)
       COMPREPLY=($(compgen -W "bootstrap install-session check-display restart" -- "$cur"))
+      ;;
+    bar)
+      if [ "$COMP_CWORD" -eq 2 ]; then
+        COMPREPLY=($(compgen -W "list status use restart stop" -- "$cur"))
+      elif [ "${COMP_WORDS[2]}" = "use" ]; then
+        # Las barras salen de programs.json (provides: "bar"), no de una lista fija:
+        # agregar una barra nueva completa sola.
+        local root bars
+        root="$(dirname "$(readlink -f "$(command -v dot)")")"
+        bars="$(python3 -c "import json; d=json.load(open('$root/programs.json')); print(' '.join(sorted(k for k,v in d.items() if v.get('provides')=='bar')))" 2>/dev/null)"
+        COMPREPLY=($(compgen -W "$bars --no-restart" -- "$cur"))
+      fi
       ;;
     keyboard)
       COMPREPLY=($(compgen -W "latam us es" -- "$cur"))

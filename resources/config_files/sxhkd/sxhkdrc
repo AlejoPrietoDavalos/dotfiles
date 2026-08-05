@@ -267,3 +267,58 @@ super + {_,shift} + F11
 # cancel the preselection for the focused desktop
 #super + ctrl + shift + space
 #	bspc query -N -d | xargs -I id -n 1 bspc node id -p cancel
+
+#---------------------------------------------------
+#  - portapapeles
+#---------------------------------------------------
+# ctrl+c y ctrl+v siguen siendo el portapapeles de siempre y NO se guardan en ningún lado.
+#
+# No hay historial automático a propósito: guardar cada copia significa escribir en disco,
+# en texto plano, todo lo que pasa por el portapapeles. Acá se guarda solo lo que elegís.
+#
+# Y `dot` se invoca por RUTA ABSOLUTA, no por nombre: sxhkd arranca desde bspwmrc al iniciar
+# sesión, con el PATH del login — que NO incluye ~/.local/bin, donde vive el symlink de
+# `dot`. Llamarlo por nombre hace que el binding se dispare y falle en silencio, que es de
+# los síntomas más molestos de diagnosticar: la tecla "no hace nada".
+
+# Un solo menú: arriba las últimas copias, abajo los slots fijos.
+super + v
+    "{{DOTFILES_REPO}}/dot" clip menu
+
+# ACORDES (sxhkd los separa con `;`): apretás la combinación y después el número.
+#
+# Se usan acordes y no `super+ctrl+N` directo por dos razones:
+#   1. mnemotécnico — c de copiar, v de pegar, igual que ctrl+c / ctrl+v
+#   2. son 2 entradas en vez de 20 bindings, y dejan libres las combinaciones con números
+#
+# Los números del pad se aceptan igual que los de la fila superior, con los
+# mismos keysyms que usan los bindings de escritorio (NumLock apagado).
+#
+# Cada acorde se declara DOS VECES: con el número solo y con el número manteniendo
+# super+ctrl apretado. sxhkd los trata como teclas distintas, y al usarlo uno no suelta los
+# modificadores — es lo natural. Sin la segunda variante el acorde "no hace nada" y parece
+# que el binding está roto.
+super + ctrl + c ; {1-9,0,KP_End,KP_Down,KP_Next,KP_Left,KP_Begin,KP_Right,KP_Home,KP_Up,KP_Prior,KP_Insert}
+    "{{DOTFILES_REPO}}/dot" clip save {1-9,0,1-9,0}
+
+super + ctrl + c ; super + ctrl + {1-9,0,KP_End,KP_Down,KP_Next,KP_Left,KP_Begin,KP_Right,KP_Home,KP_Up,KP_Prior,KP_Insert}
+    "{{DOTFILES_REPO}}/dot" clip save {1-9,0,1-9,0}
+
+super + ctrl + v ; {1-9,0,KP_End,KP_Down,KP_Next,KP_Left,KP_Begin,KP_Right,KP_Home,KP_Up,KP_Prior,KP_Insert}
+    "{{DOTFILES_REPO}}/dot" clip get {1-9,0,1-9,0}
+
+super + ctrl + v ; super + ctrl + {1-9,0,KP_End,KP_Down,KP_Next,KP_Left,KP_Begin,KP_Right,KP_Home,KP_Up,KP_Prior,KP_Insert}
+    "{{DOTFILES_REPO}}/dot" clip get {1-9,0,1-9,0}
+
+# Borrar, bajo el mismo prefijo. `d` de delete.
+super + ctrl + d ; {1-9,0,KP_End,KP_Down,KP_Next,KP_Left,KP_Begin,KP_Right,KP_Home,KP_Up,KP_Prior,KP_Insert}
+    "{{DOTFILES_REPO}}/dot" clip drop {1-9,0,1-9,0}
+
+super + ctrl + d ; super + ctrl + {1-9,0,KP_End,KP_Down,KP_Next,KP_Left,KP_Begin,KP_Right,KP_Home,KP_Up,KP_Prior,KP_Insert}
+    "{{DOTFILES_REPO}}/dot" clip drop {1-9,0,1-9,0}
+
+# Vaciar los 10 slots de una. No es un acorde: `shift` alcanza para distinguirlo de
+# `super+ctrl+d ; N`, y siendo destructivo conviene que NO comparta prefijo con el borrado
+# de a uno — así un acorde a medio tipear nunca termina borrando todo.
+super + ctrl + shift + d
+    "{{DOTFILES_REPO}}/dot" clip clear

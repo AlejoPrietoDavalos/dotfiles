@@ -34,6 +34,12 @@ class BasePkgRepository(CoreBasePkgRepository, ABC):
     def _is_installed(self, pkg_name: str) -> bool:
         return self._command_repo.run_argv_quiet([self.manager_name, "-Q", pkg_name]) == 0
 
+    def manager_exists(self) -> bool:
+        return self._exists()
+
+    def is_installed(self, pkg_names: list[str]) -> bool:
+        return all(self._is_installed(pkg) for pkg in pkg_names)
+
     def _run_install(self, pkg_names: list[str]) -> None:
         self._command_repo.run_argv([*self._install_cmd_prefix, *pkg_names])
 

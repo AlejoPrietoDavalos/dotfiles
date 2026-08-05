@@ -21,6 +21,15 @@
     ],
     "hooks": { "post_install": ["docker_enable_service", "docker_configure_group"] }
   },
+  "eww": {
+    "provides": "bar",
+    "bar": { "binary": "eww", "launch": "launch.sh", "stop": "stop.sh" },
+    "packages": [
+      { "manager": "yay", "names": ["eww", "libdbusmenu-gtk3", "gtk3", "gtk-layer-shell"] }
+    ],
+    "files": { "src": "eww", "dst": "~/.config/eww" },
+    "deps": ["pulseaudio"]
+  },
   "fonts": {
     "packages": [{ "manager": "pacman", "names": ["ttf-hack-nerd"] }],
     "files": { "src": "fonts", "dst": "~/.config/fonts" },
@@ -50,6 +59,8 @@
     ]
   },
   "polybar": {
+    "provides": "bar",
+    "bar": { "binary": "polybar", "launch": "launch.sh", "stop": "stop.sh" },
     "packages": [
       { "manager": "pacman", "names": ["polybar", "networkmanager", "libnotify"] },
       { "manager": "apt", "names": ["polybar", "network-manager", "libnotify-bin"] }

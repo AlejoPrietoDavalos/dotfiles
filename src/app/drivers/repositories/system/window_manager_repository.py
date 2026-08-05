@@ -11,7 +11,7 @@ class BspwmWindowManagerRepository(CoreWindowManagerRepository):
 
     def list_monitors(self) -> list[str]:
         try:
-            out = self._command_repo.run_capture("bspc query -M --names")
+            out = self._command_repo.run_argv_capture(["bspc", "query", "-M", "--names"])
         except Exception:
             return []
         return [line.strip() for line in out.splitlines() if line.strip()]
@@ -19,5 +19,4 @@ class BspwmWindowManagerRepository(CoreWindowManagerRepository):
     def set_monitor_desktops(self, monitor: str, desktops: list[str]) -> None:
         if not desktops:
             return
-        quoted = " ".join(f"'{d}'" for d in desktops)
-        self._command_repo.run(f"bspc monitor '{monitor}' -d {quoted}")
+        self._command_repo.run_argv(["bspc", "monitor", monitor, "-d", *desktops])
