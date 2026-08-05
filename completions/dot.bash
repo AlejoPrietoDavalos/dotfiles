@@ -8,7 +8,7 @@ _dot() {
 
   local commands="install uninstall install-requirement uninstall-requirement \
 install-files uninstall-files install-all install-core remove-core menu wifi \
-clock-set keyboard mirrors-update sddm bspwm bar target activate-linux clip \
+clock-set keyboard mirrors-update sddm bspwm bar target clip \
 sxhkd-reload scripts-chmod self"
 
   if [ "$COMP_CWORD" -eq 1 ]; then
@@ -39,9 +39,6 @@ sxhkd-reload scripts-chmod self"
     target)
       # Solo las palabras reservadas: el host lo escribe el usuario, no hay nada que sugerir.
       COMPREPLY=($(compgen -W "clear copy --name" -- "$cur"))
-      ;;
-    activate-linux)
-      COMPREPLY=($(compgen -W "on off toggle status" -- "$cur"))
       ;;
     clip)
       COMPREPLY=($(compgen -W "status clear" -- "$cur"))

@@ -212,38 +212,3 @@
   :windowtype "dock"
   :reserve (struts :side "top" :distance "32px")
   (bar_content :monitor monitor))
-
-
-;; ─────────────────── "Activate Linux" ───────────────────
-;;
-;; La marca de agua de Windows sin activar, de chiste. Adaptado de
-;; github.com/Nycta-b424b3c7/eww_activate-linux con cuatro cambios, porque el original
-;; asume un setup de un solo monitor:
-;;
-;;   1. `:class` en el box — el original define `.activate-linux` en su SCSS y no se lo
-;;      aplica a ningún widget, así que el estilo nunca llegaba a aplicarse.
-;;   2. `:stacking "bg"` en vez de "fg" — una marca de agua va DETRÁS de las ventanas.
-;;      Con "fg" flota por encima de todo y tapa lo que estés haciendo.
-;;   3. `:focusable false` — si no, bspwm la trata como una ventana más y le puede dar foco.
-;;   4. `:monitor` por argumento en vez de `0` fijo, igual que la barra.
-;;
-;; Sin `:reserve`: no es una barra, no tiene que robarle espacio al tiling.
-
-(defwidget activate_linux []
-  (box :class "activate-linux" :orientation "v" :halign "start" :valign "start"
-    (label :xalign 0 :class "activate-title" :text "Activate Linux")
-    (label :xalign 0 :class "activate-subtitle" :text "Go to Settings to activate Linux")))
-
-(defwindow activate-linux [monitor]
-  :monitor monitor
-  :geometry (geometry :x "0px" :y "0px" :width "420px" :height "110px" :anchor "bottom right")
-  :stacking "bg"
-  ;; `windowtype "normal"` para que bspwm SÍ la gestione.
-  ;;
-  ;; Suena al revés, pero es el punto: con el default (o con "desktop") bspwm la ignora, y
-  ;; una ventana no gestionada queda donde X la mapeó — arriba de todo — y ninguna regla la
-  ;; alcanza. Gestionada, la regla `layer=below` de bspwmrc la manda debajo de cualquier
-  ;; ventana normal, que es la garantía que `stacking: "bg"` (un simple hint EWMH) no da.
-  :windowtype "normal"
-  :focusable false
-  (activate_linux))

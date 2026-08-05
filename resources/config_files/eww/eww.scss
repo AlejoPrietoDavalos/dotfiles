@@ -146,32 +146,3 @@ tooltip {
 .target:hover {
   background-color: $background-alt;
 }
-
-// ── "Activate Linux" ──────────────────────────────────────────────────────
-// Los tamaños imitan la marca de agua real de Windows: título grande y subtítulo chico,
-// los dos translúcidos para que se lean sobre cualquier wallpaper sin molestar.
-
-.activate-linux {
-  // Translúcida a propósito: va en `stacking: bg`, o sea DETRÁS de las ventanas, y con
-  // picom poniendo opacidad a la terminal se termina viendo a través de ella. 0.45 se leía
-  // por encima del texto de la consola y ensuciaba; 0.18 desaparecía demasiado. 0.3 es el
-  // punto donde se nota si la buscás y no molesta cuando estás trabajando.
-  color: rgba(250, 250, 250, 0.35);
-  background: none;
-  // El margen va acá y no en el `:x/:y` de la ventana: el padding queda SIEMPRE dentro del
-  // monitor, mientras que el offset de geometría empuja la ventana hacia afuera.
-  padding: 0 24px 24px 0;
-
-  // Sombra apenas insinuada, solo para que no se pierda del todo sobre wallpapers claros.
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-}
-
-.activate-title {
-  font-size: 18pt;
-  font-weight: normal;
-}
-
-.activate-subtitle {
-  font-size: 11pt;
-  font-weight: normal;
-}

@@ -29,18 +29,4 @@ for monitor in $monitors; do
         >/dev/null 2>&1 &
 done
 
-# "Activate Linux": marca de agua opcional, en todos los monitores.
-# Se prende/apaga con un archivo y no con una variable en el config para que sobreviva a
-# `dot install-files` — la config se reescribe, el flag no.
-#   prender:  touch ~/.config/dotfiles/activate-linux
-#   apagar:   rm    ~/.config/dotfiles/activate-linux
-if [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/activate-linux" ]; then
-    for monitor in $monitors; do
-        eww --config "$CONFIG_DIR" open activate-linux \
-            --id "activate-linux-${monitor}" \
-            --arg "monitor=${monitor}" \
-            >/dev/null 2>&1 &
-    done
-fi
-
 wait
