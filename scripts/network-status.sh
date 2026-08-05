@@ -60,7 +60,18 @@ if grep -q '^ethernet:connected$' <<<"$dev_status"; then
 fi
 
 if grep -q '^wifi:connected$' <<<"$dev_status"; then
-  signal="$(nm -t -f IN-USE,SIGNAL dev wifi list | awk -F: '$1=="*"{print $2; exit}')"
+  # `--rescan no` NO es un detalle de performance, es la diferencia entre una barra fluida
+  # y una que se traba. El default de nmcli es `--rescan auto`: si la lista de redes en
+  # caché tiene más de ~30s, DISPARA UN ESCANEO DE WIFI y bloquea hasta que termina. Medido
+  # en este equipo: 75-90 ms el caso normal, 1738 ms cuando le toca escanear.
+  #
+  # Y como eww corre todos los `defpoll` de forma bloqueante en el mismo hilo donde lee los
+  # `deflisten`, ese segundo y pico congela la barra ENTERA — se veía como un tirón al
+  # cambiar de escritorio (ver el docstring de `scripts/cpu_status.py`).
+  #
+  # Con `no` se lee siempre la caché. No se pierde nada: NetworkManager la refresca solo
+  # mientras estás conectado, y para dibujar 4 barritas de señal no hace falta más.
+  signal="$(nm -t -f IN-USE,SIGNAL dev wifi list --rescan no | awk -F: '$1=="*"{print $2; exit}')"
   signal="${signal:-0}"
 
   if [ "$signal" -ge 75 ]; then
