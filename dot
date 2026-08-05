@@ -188,6 +188,166 @@ def cmd_target(args: argparse.Namespace) -> None:
         _target_set(args.host, args.name)
 
 
+# ---------------------------------------------------------------- clipboard
+
+# Slots fijos, aparte del historial de clipmenu. Son dos ideas distintas:
+#   historial  -> cronológico, se llena solo, lo viejo se cae (clipmenu, super+v)
+#   slots      -> los elegís vos y NO se caen nunca (super+ctrl+N para guardar)
+# Los slots existen porque en un engagement hay cuatro o cinco textos que se pegan todo el
+# tiempo —tu IP de VPN, un payload, un hash— y en un historial de 25 entradas se hunden.
+_CLIP_SLOTS_DIR = Path.home() / ".config" / "dotfiles" / "clips"
+
+
+# Los diez slots del portapapeles, en el orden del teclado: 1..9 y después 0.
+#
+# NO hay historial automático a propósito. Guardar cada `ctrl+c` significa escribir en disco,
+# en texto plano, todo lo que copiás —contraseñas, hashes, tokens— para que el 99% sea ruido
+# que nunca vas a volver a mirar. Acá guardás solo lo que decidís guardar.
+_CLIP_ORDER = [str(n) for n in range(1, 10)] + ["0"]
+
+
+def _clipboard():
+    from src.app.drivers.repositories.system.clipboard_repository import (
+        XclipClipboardRepository,
+    )
+
+    if shutil.which("xclip") is None:
+        sys.exit("falta xclip (dot install xclip)")
+    return XclipClipboardRepository()
+
+
+def _clipboard_write(text: str) -> None:
+    _clipboard().write_text(text)
+
+
+def _slot_path(number: str) -> Path:
+    """El archivo de texto del slot."""
+    return _CLIP_SLOTS_DIR / str(number)
+
+
+def _slot_png(number: str) -> Path:
+    """El archivo de imagen del slot. Un slot es texto O imagen, nunca las dos."""
+    return _CLIP_SLOTS_DIR / f"{number}.png"
+
+
+def _slot_preview(number: str) -> str:
+    """Lo que se ve en el menú para ese slot. Vacío si el slot está libre."""
+    png, txt = _slot_png(number), _slot_path(number)
+
+    # Las imágenes se muestran solo como "imagen · tamaño". No se guarda una etiqueta
+    # elegida por el usuario: sería otro archivo de texto libre en disco que además se
+    # renderiza en el menú, y no aporta nada que el número del slot no diga ya.
+    if png.is_file():
+        size = png.stat().st_size
+        unit = f"{size / 1024:.0f} KB" if size >= 1024 else f"{size} B"
+        return f"\uf03e imagen · {unit}"
+    if txt.is_file():
+        content = txt.read_text(encoding="utf-8", errors="replace").strip()
+        return content.splitlines()[0][:80] if content else ""
+    return ""
+
+
+def _slot_clear(number: str) -> None:
+    for path in (_slot_path(number), _slot_png(number)):
+        path.unlink(missing_ok=True)
+
+
+def cmd_clip(args: argparse.Namespace) -> None:
+    action = args.clip_action
+
+    if action == "clear":
+        # Vacía TODOS los slots. Existe porque ahí terminan credenciales de labs y tokens
+        # sin que uno lo decida, y en texto plano: tener el borrado a un comando es la
+        # diferencia entre limpiarlo y no hacerlo nunca.
+        shutil.rmtree(_CLIP_SLOTS_DIR, ignore_errors=True)
+        print("slots borrados")
+        return
+
+    if action == "save":
+        clipboard = _clipboard()
+        _CLIP_SLOTS_DIR.mkdir(parents=True, exist_ok=True)
+        _slot_clear(args.number)      # un slot es texto O imagen, no restos de las dos
+
+        # La imagen se intenta PRIMERO: una captura ofrece solo `image/png` y pedirle texto
+        # devuelve vacío, que era justamente el motivo por el que no guardaba nada.
+        if clipboard.save_png_to(_slot_png(args.number)):
+            print(f"slot {args.number}: {_slot_preview(args.number)}")
+            return
+
+        text = clipboard.read_text()
+        if not text:
+            sys.exit("el portapapeles está vacío (ni texto ni imagen)")
+        _slot_path(args.number).write_text(text, encoding="utf-8")
+        print(f"slot {args.number}: {_slot_preview(args.number)}")
+        return
+
+    if action == "get":
+        png = _slot_png(args.number)
+        if png.is_file():
+            _clipboard().copy_png_to_clipboard(png)
+            print(f"slot {args.number} → portapapeles: {_slot_preview(args.number)}")
+            return
+        path = _slot_path(args.number)
+        if not path.is_file():
+            sys.exit(f"slot {args.number} vacío")
+        _clipboard_write(path.read_text(encoding="utf-8"))
+        print(f"slot {args.number} → portapapeles: {_slot_preview(args.number)}")
+        return
+
+    if action == "list":
+        if not _CLIP_SLOTS_DIR.is_dir():
+            print("sin slots")
+            return
+        for number in _CLIP_ORDER:
+            preview = _slot_preview(number)
+            if preview:
+                print(f"  {number}  {preview}")
+        return
+
+    if action == "drop":
+        _slot_clear(args.number)
+        print(f"slot {args.number} borrado")
+        return
+
+    if action == "menu":
+        _clip_menu()
+        return
+
+    # status
+    used = [n for n in _CLIP_ORDER if _slot_preview(n)]
+    print(f"slots usados: {', '.join(used) if used else 'ninguno'} ({len(used)}/10)")
+
+
+def _clip_menu() -> None:
+    """Los diez slots, siempre los diez, en el orden del teclado.
+
+    Se muestran también los vacíos: la lista tiene posiciones FIJAS, así que con el uso
+    aprendés dónde está cada cosa y terminás yendo directo con `super+ctrl+v` sin abrir el
+    menú. Si la lista se acortara al haber huecos, cada slot cambiaría de lugar según qué
+    hay guardado y esa memoria no se formaría nunca.
+    """
+    if shutil.which("rofi") is None:
+        sys.exit("falta rofi (dot install rofi)")
+
+    rows = []
+    for number in _CLIP_ORDER:
+        rows.append(f"{number}. {_slot_preview(number)}")
+
+    chosen = subprocess.run(
+        ["rofi", "-dmenu", "-i", "-p", "clip", "-format", "s"],
+        input="\n".join(rows), capture_output=True, text=True, check=False,
+    ).stdout.strip("\n")
+
+    if not chosen:
+        return
+
+    number = chosen.split(".", 1)[0].strip()
+    if _slot_png(number).is_file():
+        _clipboard().copy_png_to_clipboard(_slot_png(number))
+    elif _slot_path(number).is_file():
+        _clipboard_write(_slot_path(number).read_text(encoding="utf-8"))
+
+
 def cmd_menu(args: argparse.Namespace) -> None:
     sh(sys.executable, str(PROJECT_ROOT / "scripts" / "menu.py"))
 
@@ -553,6 +713,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="IP o hostname (10.10.11.23, web.htb) · 'clear' borra · 'copy' copia · sin argumento muestra")
     p.add_argument("--name", nargs="*", help="nombre para reconocerla (ej: Two Million)")
     p.set_defaults(func=cmd_target)
+    p = sub.add_parser("clip", help="portapapeles: historial (clipmenu) y slots fijos")
+    p.add_argument("clip_action", nargs="?", default="status",
+                   choices=["status", "clear", "save", "get", "list", "drop", "menu"])
+    p.add_argument("number", nargs="?", help="número de slot (para save/get/drop)")
+    p.set_defaults(func=cmd_clip)
+
     sub.add_parser("sxhkd-reload", help="recarga la config de sxhkd").set_defaults(func=cmd_sxhkd_reload)
     sub.add_parser("scripts-chmod", help="da permisos de ejecución a scripts/").set_defaults(func=cmd_scripts_chmod)
 
