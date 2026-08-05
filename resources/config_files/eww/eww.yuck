@@ -47,7 +47,15 @@
 (defpoll gpu     :interval "2s"  "{{DOTFILES_REPO}}/scripts/gpu-status.sh")
 (defpoll net     :interval "3s"  "{{DOTFILES_REPO}}/scripts/network-status.sh")
 (defpoll battery :interval "10s" "{{DOTFILES_REPO}}/scripts/battery-status.sh")
-(defpoll volume  :interval "1s"  "{{DOTFILES_REPO}}/scripts/volume-status.sh")
+;; `deflisten` y no `defpoll`: el volumen lo cambiás VOS con la ruedita, así que tiene que
+;; verse instantáneo. Con un poll de 1s se veía en promedio medio segundo tarde (medido: p50
+;; 400 ms, picos de 1 s) y se sentía roto, como si la barra no respondiera.
+;;
+;; PulseAudio publica los cambios y el script se suscribe con `pactl subscribe`. Además de
+;; instantáneo sale más barato: corre cuando pasa algo, no 86.400 veces por día.
+(deflisten volume
+  :initial "Vol:--%"
+  "{{DOTFILES_REPO}}/scripts/volume-status.sh --watch")
 
 ;; ── kit de engagement ────────────────────────────────────────────────────────────────
 ;; `vpn` es la IP que ven los targets; `target`, contra qué máquina estás trabajando.
