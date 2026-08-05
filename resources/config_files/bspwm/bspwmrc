@@ -16,21 +16,6 @@ bspc config focused_border_color \#3F87A7
 bspc config active_border_color   \#1F4D62
 
 #---------------------------------------------------
-#  - reglas de ventana
-#---------------------------------------------------
-# "Activate Linux" (widget de eww, ver `dot activate-linux`): flotante y en la capa de
-# ABAJO, para que no tape ninguna aplicación ni ocupe lugar en el tiling.
-#
-# Por qué hace falta la regla y no alcanza con la config de eww: `stacking: "bg"` solo pide
-# `_NET_WM_STATE_BELOW`, que es un HINT que el WM puede ignorar. Y con `windowtype "dock"`
-# o "desktop" bspwm directamente no gestiona la ventana — queda donde X la mapeó, arriba de
-# todo, y ninguna regla la alcanza. La ventana se declara `windowtype "normal"` para que
-# bspwm SÍ la tome, y acá se la manda abajo. `layer=below` sí es una garantía.
-#
-# La clase es `Eww` con mayúscula (bspwm distingue mayúsculas al matchear).
-bspc rule -a Eww state=floating layer=below border=off focus=off sticky=on
-
-#---------------------------------------------------
 #  - window propertys
 #---------------------------------------------------
 bspc config border_width         2
