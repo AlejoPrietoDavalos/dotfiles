@@ -127,6 +127,67 @@ def cmd_bar_stop(args: argparse.Namespace) -> None:
     print("barras detenidas")
 
 
+# ---------------------------------------------------------------- target
+
+def build_target_repo():
+    from src.app.drivers.repositories.target import FileTargetRepository
+
+    return FileTargetRepository()
+
+
+# Palabras que NO son un host sino una acción. El costo de esto es que no podés tener un
+# target llamado literalmente "clear" o "copy"; a cambio, setear —que es lo que se hace
+# veinte veces por sesión— no lleva subcomando: `dot target 10.10.11.23`.
+_TARGET_ACTIONS = ("clear", "copy")
+
+
+def _target_show() -> None:
+    target = build_target_repo().get()
+    if target is None:
+        print("sin target")
+        return
+    print(f"{target.host}  {target.label}".rstrip())
+
+
+def _target_clear() -> None:
+    build_target_repo().clear()
+    print("target borrado")
+
+
+def _target_copy() -> None:
+    """Copia el host al portapapeles. Es lo que más se repite durante un engagement."""
+    target = build_target_repo().get()
+    if target is None:
+        sys.exit("sin target")
+    if shutil.which("xclip") is None:
+        sys.exit("falta xclip (dot install xclip)")
+    subprocess.run(["xclip", "-selection", "clipboard"], input=target.host, text=True, check=True)
+    print(target.host)
+
+
+def _target_set(host: str, name: list[str] | None) -> None:
+    from src.core.entities.target import Target
+
+    try:
+        target = Target(host=host, label=" ".join(name or []))
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    build_target_repo().set(target)
+    print(f"target: {target.host}" + (f" ({target.label})" if target.label else ""))
+
+
+def cmd_target(args: argparse.Namespace) -> None:
+    if args.host is None:
+        _target_show()
+    elif args.host == "clear":
+        _target_clear()
+    elif args.host == "copy":
+        _target_copy()
+    else:
+        _target_set(args.host, args.name)
+
+
 def cmd_menu(args: argparse.Namespace) -> None:
     sh(sys.executable, str(PROJECT_ROOT / "scripts" / "menu.py"))
 
@@ -486,6 +547,12 @@ def build_parser() -> argparse.ArgumentParser:
     bsub.add_parser("restart", help="relanza la barra activa").set_defaults(func=cmd_bar_restart)
     bsub.add_parser("stop", help="para todas las barras").set_defaults(func=cmd_bar_stop)
 
+
+    p = sub.add_parser("target", help="máquina objetivo del engagement (se ve en la barra)")
+    p.add_argument("host", nargs="?",
+                   help="IP o hostname (10.10.11.23, web.htb) · 'clear' borra · 'copy' copia · sin argumento muestra")
+    p.add_argument("--name", nargs="*", help="nombre para reconocerla (ej: Two Million)")
+    p.set_defaults(func=cmd_target)
     sub.add_parser("sxhkd-reload", help="recarga la config de sxhkd").set_defaults(func=cmd_sxhkd_reload)
     sub.add_parser("scripts-chmod", help="da permisos de ejecución a scripts/").set_defaults(func=cmd_scripts_chmod)
 

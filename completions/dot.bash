@@ -8,7 +8,7 @@ _dot() {
 
   local commands="install uninstall install-requirement uninstall-requirement \
 install-files uninstall-files install-all install-core remove-core menu wifi \
-clock-set keyboard mirrors-update sddm bspwm bar sxhkd-reload scripts-chmod self"
+clock-set keyboard mirrors-update sddm bspwm bar target sxhkd-reload scripts-chmod self"
 
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=($(compgen -W "$commands" -- "$cur"))
@@ -34,6 +34,10 @@ clock-set keyboard mirrors-update sddm bspwm bar sxhkd-reload scripts-chmod self
       ;;
     sddm)
       COMPREPLY=($(compgen -W "install enable start" -- "$cur"))
+      ;;
+    target)
+      # Solo las palabras reservadas: el host lo escribe el usuario, no hay nada que sugerir.
+      COMPREPLY=($(compgen -W "clear copy --name" -- "$cur"))
       ;;
     bspwm)
       COMPREPLY=($(compgen -W "bootstrap install-session check-display restart" -- "$cur"))
