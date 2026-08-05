@@ -1,0 +1,249 @@
+;; Barra de estado en eww — equivalente 1:1 de la polybar de este repo.
+;;
+;; Layout, colores y textos son los mismos a propósito: la migración se valida comparando
+;; contra polybar, y para eso las dos tienen que verse igual. Los colores viven en
+;; `eww.scss`; acá solo estructura y datos.
+;;
+;; LO QUE POLYBAR DABA GRATIS Y ACÁ HAY QUE PROVEER:
+;;   internal/bspwm     -> scripts/bspwm_workspaces.py  (deflisten)
+;;   internal/cpu       -> scripts/cpu_status.py        (con el ramp por core)
+;;   internal/memory    -> scripts/ram-status.sh
+;;   internal/pulseaudio-> scripts/volume-status.sh
+;;   internal/date      -> defpoll con `date`
+;;   custom/text x3     -> scripts/random_icon.py (uno solo, sorteado por sesión)
+;;
+;; Los módulos que en polybar ya eran `custom/script` (net, gpu, battery) se reutilizan sin
+;; tocar: imprimen texto plano, sin markup de polybar. Por eso viven en `{{DOTFILES_REPO}}/scripts`
+;; y no acá — los comparten las dos barras.
+;;
+;; Alternativa descartada: eww trae variables mágicas (EWW_CPU, EWW_RAM, EWW_BATTERY) que
+;; evitarían tres scripts. No se usan porque su formato no es el de polybar, y el objetivo
+;; de esta primera versión es que las dos barras sean indistinguibles.
+
+
+;; ─────────────────────────────── datos ───────────────────────────────
+
+;; `deflisten` y no `defpoll`: bspc EMPUJA los cambios, no hay que preguntarle. Un poll
+;; cada N ms mostraría el workspace equivocado durante esos N ms en cada cambio de foco.
+(deflisten workspaces
+  :initial "{}"
+  "$HOME/.config/eww/scripts/bspwm_workspaces.py")
+
+(defpoll clock       :interval "1s"  "date +'%H:%M:%S'")
+(defpoll clock_full  :interval "60s" "date +'%d/%m/%Y %H:%M:%S'")
+
+;; `deflisten` y no `defpoll`, aunque el dato SÍ haya que ir a buscarlo cada segundo: el
+;; script duerme 250 ms para muestrear /proc/stat dos veces, y eww corre los `defpoll` de
+;; forma bloqueante en el MISMO hilo donde lee los `deflisten`. Como poll, ese sleep
+;; congelaba la barra entera 250 ms de cada 1000 — se notaba como un delay intermitente al
+;; cambiar de escritorio (la latencia del cambio saltaba de ~50 ms a ~200 ms en 1 de cada
+;; 3). En modo `--watch` el sleep vive dentro del proceso del script y eww solo lee líneas.
+;; Ver el docstring de `scripts/cpu_status.py`.
+(deflisten cpu
+  :initial "CPU   0%"
+  "{{DOTFILES_REPO}}/scripts/cpu_status.py --watch --interval 1")
+
+(defpoll ram     :interval "2s"  "{{DOTFILES_REPO}}/scripts/ram-status.sh")
+(defpoll gpu     :interval "2s"  "{{DOTFILES_REPO}}/scripts/gpu-status.sh")
+(defpoll net     :interval "3s"  "{{DOTFILES_REPO}}/scripts/network-status.sh")
+(defpoll battery :interval "10s" "{{DOTFILES_REPO}}/scripts/battery-status.sh")
+(defpoll volume  :interval "1s"  "{{DOTFILES_REPO}}/scripts/volume-status.sh")
+
+;; ── kit de engagement ────────────────────────────────────────────────────────────────
+;; `vpn` es la IP que ven los targets; `target`, contra qué máquina estás trabajando.
+;; Los dos scripts devuelven vacío cuando no aplica, así el MISMO config sirve en la
+;; máquina de todos los días y en la VM de ataque, sin condicionales por máquina.
+(defpoll vpn    :interval "5s" "{{DOTFILES_REPO}}/scripts/vpn-status.sh")
+
+;; `deflisten` y no `defpoll`: el target cambia unas 5 veces por día. Un poll cada 2s corre
+;; el script 43.200 veces diarias para que 43.195 devuelvan lo mismo. El watcher vive una
+;; sola vez, reacciona en 250 ms y cuesta un `stat()`. Ver `scripts/target_watch.py`.
+(deflisten target
+  :initial ""
+  "cd {{DOTFILES_REPO}} && PYTHONPATH=. python3 scripts/target_watch.py")
+
+;; Equivalente al `hidden = true` + `polybar-msg module_toggle` de polybar. Acá es una
+;; variable y no IPC: `eww update show_system=true`. Más simple, y no depende de que la
+;; barra esté escuchando en un socket.
+(defvar show_system false)
+
+;; Ícono de la barra: se sortea entre python / arch / tux. polybar mostraba LOS TRES fijos
+;; (módulos `python`, `arch`, `linux`); acá va uno solo y rota en cada arranque.
+;; `defpoll` con intervalo largo = se sortea al levantar el daemon y no cambia en la sesión.
+;; El `:initial` evita que la barra arranque vacía mientras corre el script la primera vez.
+(defpoll icon
+  :interval "12h"
+  :initial ""
+  "{{DOTFILES_REPO}}/scripts/random_icon.py")
+
+
+;; ─────────────────────────────── widgets ───────────────────────────────
+
+(defwidget sep []
+  (label :class "sep" :text "|"))
+
+(defwidget workspaces_widget [monitor]
+  (box :class "workspaces" :space-evenly false :halign "center"
+    (for ws in {workspaces?.[monitor] ?: "[]"}
+      (button
+        :class {ws.urgent ? "ws urgent" : ws.focused ? "ws focused" : ws.occupied ? "ws occupied" : "ws empty"}
+        ;; Los nombres de desktop son únicos en todo bspwm (1..5 en un monitor, 6..0 en el
+        ;; otro), así que alcanza con el nombre — no hace falta apuntar al monitor.
+        :onclick "bspc desktop -f ${ws.name}"
+        "${ws.name}"))))
+
+(defwidget vpn_widget []
+  ;; A la IZQUIERDA DE TODO: es el dato que más se pega durante un engagement (reverse
+  ;; shells, payloads, listeners) y en el extremo siempre está en el mismo lugar, no se
+  ;; corre cuando cambia el ancho de lo que tiene al lado.
+  ;; Solo ocupa lugar con la VPN levantada; sin ella, invisible.
+  (revealer :transition "slideright" :reveal {vpn != ""} :duration "150ms"
+    (box :space-evenly false
+      (button :class "mod vpn"
+              :tooltip "tu IP de VPN — click para copiar"
+              :onclick "printf %s '${vpn}' | xclip -selection clipboard"
+              " ${vpn}")
+      (sep))))
+
+(defwidget left []
+  (box :class "left" :space-evenly false :halign "start"
+    (vpn_widget)
+    ;; UN botón, no tres: el ícono sorteado ES el toggle de los módulos de sistema.
+    ;; En polybar el toggle era el módulo `linux` (`click-left = toggle-cpu-module.sh` +
+    ;; IPC `polybar-msg module_toggle`); acá es una variable y el ícono es variable también.
+    (button :class "icon toggle"
+            :tooltip {show_system ? "ocultar sistema" : "mostrar RAM / GPU / CPU"}
+            :onclick "${EWW_CMD} update show_system=${!show_system}"
+            icon)
+    (revealer :transition "slideright" :reveal show_system :duration "150ms"
+      (box :space-evenly false
+        (sep)
+        (label :class "mod" :text ram)
+        (sep)
+        (label :class "mod" :text gpu)
+        (sep)
+        (label :class "mod" :text cpu)))))
+
+(defwidget engagement []
+  ;; La mira SIEMPRE está: apagada recuerda que existe, encendida grita contra qué máquina
+  ;; estás disparando. Es la defensa contra el error más caro de un lab — correr algo
+  ;; contra la caja equivocada.
+  ;;
+  ;; La clase sale de si el dato está vacío, NO de comparar contra el glifo: el script
+  ;; devuelve el valor crudo y la presentación se decide acá.
+  (button :class {target == "" ? "mod target idle" : "mod target active"}
+          :tooltip {target == "" ? "sin target · `dot target set <ip>`" : "click para copiar la IP"}
+          :onclick "dot target copy"
+          {target == "" ? "" : " " + target}))
+
+(defwidget right []
+  (box :class "right" :space-evenly false :halign "end"
+    (engagement)
+    (sep)
+    (button :class "mod" :onclick "{{DOTFILES_REPO}}/scripts/wifi-menu.sh" net)
+    (sep)
+    (label :class "mod" :text battery)
+    (sep)
+    (label :class "mod" :text volume)
+    (sep)
+    ;; `time-alt` de polybar: click alterna hora / fecha completa. Acá con un tooltip,
+    ;; que además no obliga a hacer click.
+    (box :class "mod" :tooltip clock_full (label :text clock))))
+
+(defwidget bar_content [monitor]
+  (centerbox :class "bar" :orientation "h"
+    (left)
+    (workspaces_widget :monitor monitor)
+    (right)))
+
+
+;; ─────────────────────────────── ventana ───────────────────────────────
+
+;; UNA definición, N instancias: `launch.sh` la abre una vez por monitor conectado, con
+;; `--id` distinto y el nombre del monitor como argumento. Es el equivalente del bucle
+;; `MONITOR=$m polybar example &`.
+(defwindow bar [monitor]
+  :monitor monitor
+  ;; ALTURA: 32px, y NO 28 — que es lo que decía antes y era mentira.
+  ;;
+  ;; `:height` en GTK es un MÍNIMO, no un máximo: si el contenido no entra, la ventana crece
+  ;; igual. Los círculos de workspace miden 27px (aro de 2px + texto de 14pt + margen), así
+  ;; que la barra declaraba 28px y renderizaba 31px. Medido pixel por pixel sobre una
+  ;; captura: la barra ocupaba y=0..30.
+  ;;
+  ;; Eso rompía el borde superior de la ventana enfocada, porque el strut seguía reservando
+  ;; 28px: bspwm dejaba la ventana en y=28 y los 3px sobrantes de barra se la comían justo
+  ;; encima del borde de 2px. Se veía como que la barra "tapa" la ventana de abajo.
+  ;;
+  ;; 32 > 31 = GTK ya no tiene que agrandar nada y lo declarado coincide con lo real. Si
+  ;; algún día sube el tamaño de fuente, este número TIENE que volver a subir.
+  :geometry (geometry :x "0%" :y "0%" :width "100%" :height "32px" :anchor "top center")
+  :stacking "fg"
+  ;; `dock` + `reserve` son OBLIGATORIOS en X11: son los que hacen que bspwm no tile las
+  ;; ventanas DEBAJO de la barra. polybar los ponía solo (EWMH _NET_WM_STRUT_PARTIAL).
+  ;; Sacar cualquiera de los dos = barra tapando ventanas. Es el error #1 al migrar.
+  ;;
+  ;; El `:height` y el `:distance` de los struts SIEMPRE se mueven juntos: si la barra crece
+  ;; (por ejemplo al subir el tamaño de fuente) y los struts se quedan con el valor viejo,
+  ;; la barra se monta sobre la ventana de arriba y le tapa el borde.
+  ;;
+  ;; El strut vale EXACTAMENTE lo mismo que `:height`, ni un píxel más.
+  ;;
+  ;; Menos = la barra se monta sobre la ventana y le come el borde superior (era el bug:
+  ;; alto real 31px contra strut de 28px).
+  ;;
+  ;; Más = queda un hueco entre la barra y la ventana que deja ver el root window, y se ve
+  ;; como una franja negra pegada abajo de la barra. Probado con 35px: se nota y es feo.
+  ;;
+  ;; Iguales = el borde de la ventana arranca justo donde termina la barra. El marco se
+  ;; distingue igual porque el color del borde enfocado (#3F87A7) contrasta contra el fondo
+  ;; de la barra; no hace falta aire de por medio.
+  ;;
+  ;; Y el aire NO se puede pedir desde `bspc config top_padding` (que es donde se intentaba,
+  ;; en bspwmrc): el strut SUBE el padding del monitor al mapearse la barra, no se suma al
+  ;; valor configurado. Con top_padding=3 y strut=28, `bspc query -T -m` reportaba
+  ;; `padding.top: 28`; el 3 quedaba solo como piso.
+  ;;
+  ;; Detalle que muerde al iterar sobre este número: el strut SUBE el padding pero nunca lo
+  ;; BAJA. Si probás 35 y después volvés a 32, bspwm se queda en 35 aunque relances la barra,
+  ;; y seguís viendo la franja negra pensando que el cambio no funcionó. Para verlo en
+  ;; caliente hay que forzarlo con `bspc config top_padding <n>`. En un login limpio no pasa:
+  ;; bspwmrc arranca en 3 y el strut lo sube al valor de acá.
+  :windowtype "dock"
+  :reserve (struts :side "top" :distance "32px")
+  (bar_content :monitor monitor))
+
+
+;; ─────────────────── "Activate Linux" ───────────────────
+;;
+;; La marca de agua de Windows sin activar, de chiste. Adaptado de
+;; github.com/Nycta-b424b3c7/eww_activate-linux con cuatro cambios, porque el original
+;; asume un setup de un solo monitor:
+;;
+;;   1. `:class` en el box — el original define `.activate-linux` en su SCSS y no se lo
+;;      aplica a ningún widget, así que el estilo nunca llegaba a aplicarse.
+;;   2. `:stacking "bg"` en vez de "fg" — una marca de agua va DETRÁS de las ventanas.
+;;      Con "fg" flota por encima de todo y tapa lo que estés haciendo.
+;;   3. `:focusable false` — si no, bspwm la trata como una ventana más y le puede dar foco.
+;;   4. `:monitor` por argumento en vez de `0` fijo, igual que la barra.
+;;
+;; Sin `:reserve`: no es una barra, no tiene que robarle espacio al tiling.
+
+(defwidget activate_linux []
+  (box :class "activate-linux" :orientation "v" :halign "start" :valign "start"
+    (label :xalign 0 :class "activate-title" :text "Activate Linux")
+    (label :xalign 0 :class "activate-subtitle" :text "Go to Settings to activate Linux")))
+
+(defwindow activate-linux [monitor]
+  :monitor monitor
+  :geometry (geometry :x "0px" :y "0px" :width "420px" :height "110px" :anchor "bottom right")
+  :stacking "bg"
+  ;; `windowtype "normal"` para que bspwm SÍ la gestione.
+  ;;
+  ;; Suena al revés, pero es el punto: con el default (o con "desktop") bspwm la ignora, y
+  ;; una ventana no gestionada queda donde X la mapeó — arriba de todo — y ninguna regla la
+  ;; alcanza. Gestionada, la regla `layer=below` de bspwmrc la manda debajo de cualquier
+  ;; ventana normal, que es la garantía que `stacking: "bg"` (un simple hint EWMH) no da.
+  :windowtype "normal"
+  :focusable false
+  (activate_linux))

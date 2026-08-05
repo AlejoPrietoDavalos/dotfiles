@@ -62,7 +62,34 @@ dot install-all
 ```
 
 Programas disponibles:
-- `bspwm`, `sxhkd`, `polybar`, `kitty`, `ranger`, `picom`, `rofi`, `playerctl`, `scrot`, `thunar`, `theme-dark`, `vscode`, `xclip`, `pulseaudio`, `arandr`, `xorg`, `nvidia`, `docker`.
+- `bspwm`, `sxhkd`, `polybar`, `eww`, `kitty`, `ranger`, `picom`, `rofi`, `playerctl`, `scrot`, `thunar`, `theme-dark`, `vscode`, `xclip`, `pulseaudio`, `arandr`, `xorg`, `nvidia`, `docker`.
+
+### Barra de estado (`polybar` / `eww`)
+
+Son **alternativas del mismo slot**: no pueden convivir (las dos reservan struts y bspwm
+restaría el espacio dos veces). Cuál está activa lo decide cada máquina.
+
+```bash
+dot bar list          # barras conocidas, cuál está activa, cuáles están instaladas
+dot bar use eww       # cambia y relanza
+dot bar restart       # relanza la activa
+dot bar stop
+```
+
+| | |
+|---|---|
+| **Estado** | `~/.config/dotfiles/state.json` — fuera del repo, es preferencia por máquina |
+| **Arranque** | `bspwmrc` llama a `scripts/launch_bar.py`, que resuelve cuál. Esa línea ya no cambia |
+| **Fallback** | si la elegida no está instalada (o el estado está corrupto) arranca `polybar`. Nunca te quedás sin barra |
+| **Debian/Ubuntu** | `eww` no está en repos apt (hay que compilarlo con Rust), así que su entrada en `programs.json` no declara `apt` → en apt queda polybar, y `dot bar use eww` falla con mensaje claro |
+
+Agregar una barra nueva no toca código Python: una entrada en `programs.json` con
+`"provides": "bar"` + sus `launch.sh` / `stop.sh`. Ese par de scripts **es** la estrategia
+(ver `src/core/entities/bar.py`).
+
+Los módulos de sistema (`network-status.sh`, `gpu-status.sh`, `battery-status.sh`,
+`cpu_status.py`, `ram-status.sh`, `volume-status.sh`) viven en `scripts/` y **los comparten
+las dos barras**: imprimen texto plano, sin markup de ninguna.
 
 Ejemplos:
 ```bash
