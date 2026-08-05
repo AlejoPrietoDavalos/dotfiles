@@ -72,7 +72,12 @@ def build_program_actions():
 # ---------------------------------------------------------------- programas
 
 def cmd_program_action(args: argparse.Namespace) -> None:
-    build_program_actions().run(action=args.action, program=args.program)
+    # Varios programas en una sola invocación: `dot install-files bspwm sxhkd`. Se instalan
+    # en el orden dado, no en paralelo — algunos tienen hooks que asumen que el anterior ya
+    # terminó (sxhkd_reload, por ejemplo).
+    actions = build_program_actions()
+    for program in args.program:
+        actions.run(action=args.action, program=program)
 
 
 def cmd_install_all(args: argparse.Namespace) -> None:
@@ -709,8 +714,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     for action in ("install", "uninstall", "install-requirement", "uninstall-requirement", "install-files", "uninstall-files"):
-        p = sub.add_parser(action, help=f"{action} de un programa")
-        p.add_argument("program", choices=PROGRAMS)
+        p = sub.add_parser(action, help=f"{action} de uno o varios programas")
+        p.add_argument("program", nargs="+", choices=PROGRAMS, metavar="program")
         p.set_defaults(func=cmd_program_action, action=action)
 
     sub.add_parser("install-all", help="instala paquetes+archivos de todos los programas").set_defaults(func=cmd_install_all)
