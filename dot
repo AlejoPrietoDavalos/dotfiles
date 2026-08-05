@@ -188,6 +188,61 @@ def cmd_target(args: argparse.Namespace) -> None:
         _target_set(args.host, args.name)
 
 
+# ---------------------------------------------------------------- activate-linux
+
+# La marca de agua de Windows sin activar, de chiste. Es un widget de eww, así que solo
+# aplica cuando la barra activa es eww — con polybar no hay daemon donde abrirla.
+_ACTIVATE_LINUX_FLAG = Path.home() / ".config" / "dotfiles" / "activate-linux"
+_EWW_CONFIG = Path.home() / ".config" / "eww"
+
+
+def _eww(*args_eww: str) -> int:
+    return subprocess.run(
+        ["eww", "--config", str(_EWW_CONFIG), *args_eww],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+    ).returncode
+
+
+def _monitors() -> list[str]:
+    """Los monitores según bspwm, no xrandr: bspwm ya fijó el orden en apply_monitors."""
+    try:
+        return capture("bspc", "query", "-M", "--names").split()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
+
+
+def _activate_linux_open() -> None:
+    for monitor in _monitors():
+        _eww("open", "activate-linux", "--id", f"activate-linux-{monitor}",
+             "--arg", f"monitor={monitor}")
+
+
+def _activate_linux_close() -> None:
+    for monitor in _monitors():
+        _eww("close", f"activate-linux-{monitor}")
+
+
+def cmd_activate_linux(args: argparse.Namespace) -> None:
+    action = args.activate_linux_action or "toggle"
+
+    if action == "status":
+        print("on" if _ACTIVATE_LINUX_FLAG.exists() else "off")
+        return
+
+    if action == "toggle":
+        action = "off" if _ACTIVATE_LINUX_FLAG.exists() else "on"
+
+    if action == "on":
+        # El flag es lo que la hace sobrevivir al reinicio: lo lee el launch.sh de eww.
+        _ACTIVATE_LINUX_FLAG.parent.mkdir(parents=True, exist_ok=True)
+        _ACTIVATE_LINUX_FLAG.touch()
+        _activate_linux_open()
+    else:
+        _ACTIVATE_LINUX_FLAG.unlink(missing_ok=True)
+        _activate_linux_close()
+    print(f"activate-linux: {action}")
+
+
 # ---------------------------------------------------------------- clipboard
 
 # Slots fijos, aparte del historial de clipmenu. Son dos ideas distintas:
@@ -707,12 +762,17 @@ def build_parser() -> argparse.ArgumentParser:
     bsub.add_parser("restart", help="relanza la barra activa").set_defaults(func=cmd_bar_restart)
     bsub.add_parser("stop", help="para todas las barras").set_defaults(func=cmd_bar_stop)
 
-
     p = sub.add_parser("target", help="máquina objetivo del engagement (se ve en la barra)")
     p.add_argument("host", nargs="?",
                    help="IP o hostname (10.10.11.23, web.htb) · 'clear' borra · 'copy' copia · sin argumento muestra")
     p.add_argument("--name", nargs="*", help="nombre para reconocerla (ej: Two Million)")
     p.set_defaults(func=cmd_target)
+
+    p = sub.add_parser("activate-linux", help="marca de agua 'Activate Linux' (solo con eww)")
+    p.add_argument("activate_linux_action", nargs="?", choices=["on", "off", "toggle", "status"],
+                   help="sin argumento: toggle")
+    p.set_defaults(func=cmd_activate_linux)
+
     p = sub.add_parser("clip", help="portapapeles: historial (clipmenu) y slots fijos")
     p.add_argument("clip_action", nargs="?", default="status",
                    choices=["status", "clear", "save", "get", "list", "drop", "menu"])
