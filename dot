@@ -234,6 +234,48 @@ def cmd_scripts_chmod(args: argparse.Namespace) -> None:
             path.chmod(path.stat().st_mode | 0o111)
 
 
+# ---------------------------------------------------------------- bidcom
+
+def _build_bidcom_config_repo():
+    from src.app.drivers.repositories.system import JsonBidcomConfigRepository
+
+    return JsonBidcomConfigRepository()
+
+
+def cmd_bidcom_start_work(args: argparse.Namespace) -> None:
+    from src.app.drivers.repositories.logs import ConfigureLoggingRepository
+    from src.app.drivers.repositories.system import (
+        BspwmWindowManagerRepository,
+        KittyTerminalRepository,
+        LinuxAppLauncherRepository,
+    )
+    from src.core.use_cases.bidcom_start_work import BidcomStartWorkService
+
+    ConfigureLoggingRepository().configure()  # sin archivo: loguea a consola
+    config_repo = _build_bidcom_config_repo()
+    if not config_repo.exists():
+        config_repo.save(config_repo.load())  # materializa los defaults
+        print(f"Config privada creada (no se versiona): {config_repo.location()}")
+    config = config_repo.load()
+    launcher_repo = LinuxAppLauncherRepository()
+    service = BidcomStartWorkService(
+        config=config,
+        window_manager_repo=BspwmWindowManagerRepository(),
+        launcher_repo=launcher_repo,
+        terminal_repo=KittyTerminalRepository(
+            launcher_repo=launcher_repo, program=config.terminal_program
+        ),
+    )
+    service.run(sections=args.only or None)
+
+
+def cmd_bidcom_config(args: argparse.Namespace) -> None:
+    config_repo = _build_bidcom_config_repo()
+    print(config_repo.location())
+    if not config_repo.exists():
+        print("(todavía no existe: se crea con `dot bidcom start-work`)")
+
+
 # ---------------------------------------------------------------- git
 
 def _git_repo_root() -> Path:
@@ -367,6 +409,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("sxhkd-reload", help="recarga la config de sxhkd").set_defaults(func=cmd_sxhkd_reload)
     sub.add_parser("scripts-chmod", help="da permisos de ejecución a scripts/").set_defaults(func=cmd_scripts_chmod)
+
+    p = sub.add_parser("bidcom", help="automatizaciones del trabajo")
+    bsub = p.add_subparsers(dest="bidcom_command", required=True)
+    bw = bsub.add_parser(
+        "start-work",
+        help="abre vscode, terminales con venv y apps, cada cosa en su desktop",
+    )
+    bw.add_argument(
+        "--only",
+        action="append",
+        choices=["vscode", "terminals", "apps"],
+        help="correr solo esa sección (repetible)",
+    )
+    bw.set_defaults(func=cmd_bidcom_start_work)
+    bsub.add_parser("config", help="path de la config privada (gitignoreada)").set_defaults(
+        func=cmd_bidcom_config
+    )
 
     p = sub.add_parser("git", help="helpers de git")
     gsub = p.add_subparsers(dest="git_command", required=True)

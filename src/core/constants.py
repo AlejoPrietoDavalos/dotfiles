@@ -10,6 +10,12 @@ path_config_files = path_resources / "config_files"
 path_scripts = path_repo / "scripts"
 path_logs = path_repo / "logs"
 
+# Config privada (gitignoreada): datos del trabajo que no se versionan.
+path_private = path_repo / "private"
+
+# Artefactos generados en runtime (no versionados, fuera del repo).
+path_cache = Path.home() / ".cache" / "dotfiles"
+
 # System destination for program dotfiles.
 path_home = Path.home()
 path_dotfiles = path_home / ".config"

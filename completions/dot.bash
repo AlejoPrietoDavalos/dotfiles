@@ -8,7 +8,7 @@ _dot() {
 
   local commands="install uninstall install-requirement uninstall-requirement \
 install-files uninstall-files install-all install-core remove-core menu monitors wifi \
-clock-set keyboard mirrors-update sddm bspwm sxhkd-reload scripts-chmod self"
+clock-set keyboard mirrors-update sddm bspwm bidcom sxhkd-reload scripts-chmod self"
 
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=($(compgen -W "$commands" -- "$cur"))
@@ -37,6 +37,13 @@ clock-set keyboard mirrors-update sddm bspwm sxhkd-reload scripts-chmod self"
       ;;
     bspwm)
       COMPREPLY=($(compgen -W "bootstrap install-session check-display restart" -- "$cur"))
+      ;;
+    bidcom)
+      if [ "$COMP_CWORD" -eq 2 ]; then
+        COMPREPLY=($(compgen -W "start-work config" -- "$cur"))
+      elif [ "${COMP_WORDS[2]}" = "start-work" ]; then
+        COMPREPLY=($(compgen -W "--only" -- "$cur"))
+      fi
       ;;
     keyboard)
       COMPREPLY=($(compgen -W "latam us es" -- "$cur"))
