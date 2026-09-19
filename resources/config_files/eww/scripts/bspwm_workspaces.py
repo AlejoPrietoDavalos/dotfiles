@@ -32,6 +32,11 @@ _DESKTOP = "OoFfUu"
 _OCCUPIED = "Oo"
 _URGENT = "Uu"
 
+# Los desktops del pad numérico (reparto `pad` de `dot monitors`) se llaman n1-n4 en
+# bspwm porque `/ * - +` no son nombres seguros para los selectores; en la barra se
+# muestran como la tecla que los enfoca. Mismo mapeo que ws-icon en polybar.
+_LABELS = {"n1": "/", "n2": "*", "n3": "-", "n4": "+"}
+
 
 def parse_report(line: str) -> dict[str, list[dict]]:
     """Reporte crudo → {monitor: [{name, focused, occupied, urgent}, ...]}.
@@ -53,6 +58,7 @@ def parse_report(line: str) -> dict[str, list[dict]]:
             monitors[current].append(
                 {
                     "name": value,
+                    "label": _LABELS.get(value, value),
                     "focused": kind.isupper(),
                     "occupied": kind in _OCCUPIED,
                     "urgent": kind in _URGENT,

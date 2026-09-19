@@ -97,8 +97,10 @@
         :class {ws.urgent ? "ws urgent" : ws.focused ? "ws focused" : ws.occupied ? "ws occupied" : "ws empty"}
         ;; Los nombres de desktop son únicos en todo bspwm (1..5 en un monitor, 6..0 en el
         ;; otro), así que alcanza con el nombre — no hace falta apuntar al monitor.
-        :onclick "bspc desktop -f ${ws.name}"
-        "${ws.name}"))))
+        ;; `%` fuerza selección por nombre (sin él, "1".."0" se leen como índice).
+        ;; `label` es lo que se ve: los desktops del pad (n1-n4) se muestran como / * - +.
+        :onclick "bspc desktop -f '%${ws.name}'"
+        "${ws.label}"))))
 
 (defwidget vpn_widget []
   ;; A la IZQUIERDA DE TODO: es el dato que más se pega durante un engagement (reverse
