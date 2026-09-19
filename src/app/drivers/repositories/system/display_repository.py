@@ -17,33 +17,39 @@ class XrandrDisplayRepository(CoreDisplayRepository):
         except Exception:
             return ""
 
-    def list_connected_outputs(self) -> list[str]:
-        out = self._query()
-        if not out:
-            return []
+    def _outputs(self, *, connected: bool, only_active: bool = False) -> list[str]:
         outputs: list[str] = []
-        for line in out.splitlines():
-            if " connected" not in line or " disconnected" in line:
+        for line in self._query().splitlines():
+            if " connected" not in line:
                 continue
-            parts = line.split()
-            if parts:
-                outputs.append(parts[0].strip())
-        return outputs
-
-    def list_active_outputs(self) -> list[str]:
-        out = self._query()
-        if not out:
-            return []
-        outputs: list[str] = []
-        for line in out.splitlines():
-            if " connected" not in line or " disconnected" in line:
+            if (" disconnected" in line) is connected:
                 continue
             parts = line.split()
             if not parts:
                 continue
-            if any(_ACTIVE_GEOMETRY.search(token) for token in parts[1:]):
-                outputs.append(parts[0].strip())
+            if only_active and not any(
+                _ACTIVE_GEOMETRY.search(token) for token in parts[1:]
+            ):
+                continue
+            outputs.append(parts[0].strip())
         return outputs
+
+    def list_connected_outputs(self) -> list[str]:
+        return self._outputs(connected=True)
+
+    def list_active_outputs(self) -> list[str]:
+        return self._outputs(connected=True, only_active=True)
+
+    def list_stale_outputs(self) -> list[str]:
+        return self._outputs(connected=False, only_active=True)
+
+    def disable_outputs(self, outputs: list[str]) -> None:
+        if not outputs:
+            return
+        cmd_parts = ["xrandr"]
+        for output in outputs:
+            cmd_parts.extend(["--output", output, "--off"])
+        self._command_repo.run_argv(cmd_parts)
 
     def enable_outputs_auto(self, outputs: list[str]) -> None:
         if not outputs:

@@ -1,73 +1,102 @@
 import time
 
+from src.core.entities.monitor_layout import (
+    MonitorLayoutConfig,
+    get_distribution_strategy,
+    is_internal_output,
+)
 from src.core.repositories.system.display_repository import CoreDisplayRepository
+from src.core.repositories.system.monitor_config_repository import (
+    CoreMonitorConfigRepository,
+)
 from src.core.repositories.system.window_manager_repository import (
     CoreWindowManagerRepository,
 )
 
 
-DESKTOPS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
-
-
-def split_even(items: list[str], parts: int) -> list[list[str]]:
-    if parts <= 0:
-        return []
-    base, extra = divmod(len(items), parts)
-    chunks: list[list[str]] = []
-    index = 0
-    for part in range(parts):
-        size = base + (1 if part >= (parts - extra) and extra > 0 else 0)
-        chunks.append(items[index : index + size])
-        index += size
-    return chunks
-
-
 class ApplyMonitorLayoutService:
+    """Aplica la distribución elegida de monitores/desktops.
+
+    1. Apaga los outputs desconectados que xrandr dejó encendidos (si no, el WM
+       los sigue viendo como monitores y se lleva desktops a la nada).
+    2. Ordena físicamente los outputs con xrandr según ``notebook_side``.
+    3. Reparte los desktops entre los monitores de bspwm según la estrategia
+       de ``distribution`` (pegados al rol: notebook vs externo).
+    """
+
     def __init__(
         self,
         display_repo: CoreDisplayRepository,
         window_manager_repo: CoreWindowManagerRepository,
-        reverse_monitor_layout: bool = True,
+        config_repo: CoreMonitorConfigRepository,
     ) -> None:
         self._display_repo = display_repo
         self._window_manager_repo = window_manager_repo
-        self._reverse_monitor_layout = reverse_monitor_layout
+        self._config_repo = config_repo
 
     def run(self) -> None:
-        self._ensure_connected_outputs_enabled()
-        monitors = self._resolve_active_monitors()
-        if not monitors:
-            return
-
-        target_monitors = monitors[: len(DESKTOPS)]
-        chunks = split_even(DESKTOPS, len(target_monitors))
-        for monitor, desktops in zip(target_monitors, chunks):
-            self._window_manager_repo.set_monitor_desktops(monitor, desktops)
-
-    def _ensure_connected_outputs_enabled(self) -> None:
+        config = self._config_repo.load()
         connected = self._display_repo.list_connected_outputs()
+        self._apply_physical_layout(connected, config)
+        self._apply_desktop_distribution(connected, config)
+
+    # -- xrandr: ordenar los outputs de izquierda a derecha ------------------ #
+    def _apply_physical_layout(
+        self, connected: list[str], config: MonitorLayoutConfig
+    ) -> None:
+        stale = self._display_repo.list_stale_outputs()
+        if stale:
+            self._display_repo.disable_outputs(stale)
+            time.sleep(0.2)
         if not connected:
             return
-        target_layout = list(reversed(connected)) if self._reverse_monitor_layout else connected
-        active = set(self._display_repo.list_active_outputs())
-        if any(output not in active for output in connected):
-            self._display_repo.enable_outputs_auto(target_layout)
-            time.sleep(0.2)
-            return
-
-        self._display_repo.enable_outputs_auto(target_layout)
+        notebook, externals = self._classify(connected)
+        ordered = self._order_by_side(notebook, externals, config.notebook_side)
+        self._display_repo.enable_outputs_auto(ordered)
         time.sleep(0.2)
 
-    def _resolve_active_monitors(self) -> list[str]:
-        bspwm_monitors = self._window_manager_repo.list_monitors()
-        if not bspwm_monitors:
-            return []
-        xrandr_active = self._display_repo.list_active_outputs()
-        if not xrandr_active:
-            return list(reversed(bspwm_monitors)) if self._reverse_monitor_layout else bspwm_monitors
-        ordered = [m for m in xrandr_active if m in bspwm_monitors]
-        base = ordered or bspwm_monitors
-        return list(reversed(base)) if self._reverse_monitor_layout else base
+    # -- bspwm: repartir los desktops por rol -------------------------------- #
+    def _apply_desktop_distribution(
+        self, connected: list[str], config: MonitorLayoutConfig
+    ) -> None:
+        monitors = self._live_monitors(connected)
+        if not monitors:
+            return
+        notebook, externals = self._classify(monitors)
+        strategy = get_distribution_strategy(config.distribution)
+        assignment = strategy.assign(notebook, externals)
+        for monitor, desktops in assignment.items():
+            self._window_manager_repo.set_monitor_desktops(monitor, desktops)
+
+    # -- helpers ------------------------------------------------------------- #
+    def _live_monitors(self, connected: list[str]) -> list[str]:
+        """Monitores de bspwm que siguen respaldados por un output conectado.
+
+        Red de seguridad por si el WM todavía no soltó el monitor fantasma que
+        acabamos de apagar; sin esto se le reparten desktops a una pantalla que
+        ya no existe.
+        """
+        monitors = self._window_manager_repo.list_monitors()
+        if not connected:
+            return monitors
+        live = [monitor for monitor in monitors if monitor in connected]
+        return live or monitors
+
+    @staticmethod
+    def _classify(names: list[str]) -> tuple[str | None, list[str]]:
+        notebook = next((name for name in names if is_internal_output(name)), None)
+        externals = [name for name in names if name != notebook]
+        return notebook, externals
+
+    @staticmethod
+    def _order_by_side(
+        notebook: str | None, externals: list[str], side: str
+    ) -> list[str]:
+        if notebook is None:
+            return externals
+        if side == "right":
+            return [*externals, notebook]
+        return [notebook, *externals]
 
 
 # Backward compatibility while migrating call sites.

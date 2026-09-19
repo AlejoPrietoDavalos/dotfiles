@@ -7,7 +7,7 @@ _dot() {
   cmd="${COMP_WORDS[1]}"
 
   local commands="install uninstall install-requirement uninstall-requirement \
-install-files uninstall-files install-all install-core remove-core menu wifi \
+install-files uninstall-files install-all install-core remove-core menu monitors wifi \
 clock-set keyboard mirrors-update sddm bspwm bar target clip \
 sxhkd-reload scripts-chmod self"
 

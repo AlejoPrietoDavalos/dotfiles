@@ -135,8 +135,32 @@ dot sddm start
 Otros comandos utiles:
 ```bash
 dot menu                 # menu interactivo de programas
+dot monitors             # elegir lado de la notebook + reparto de desktops (interactivo)
 dot wifi                 # conectar a una red wifi (interactivo)
 dot wifi saved           # redes guardadas
 dot wifi status          # estado de los dispositivos de red
 dot mirrors-update       # refresca mirrors de pacman (reflector)
 ```
+
+## Monitores y desktops
+
+`dot monitors` abre un menu para elegir dos cosas independientes:
+
+- **Lado de la notebook**: `left` o `right` respecto del monitor grande. Solo
+  reordena los outputs en `xrandr` (`--left-of`/`--right-of`); no cambia los
+  numeros de desktop.
+- **Reparto de desktops** (patron Strategy, `src/core/entities/monitor_layout.py`):
+  - `even`    -> notebook `1-5`, monitor grande `6-0` (parejo).
+  - `duo`     -> notebook `1-2`, monitor grande `3-0`.
+  - `minimal` -> notebook solo el `0`, monitor grande `1-9`.
+  - `pad`     -> notebook los 4 desktops del pad numerico (`/ * - +`, atajos
+    `super + KP_Divide/KP_Multiply/KP_Subtract/KP_Add`), monitor grande `1-0`.
+    Sin monitor externo, la notebook tiene los 14 (pad a la izquierda del `1`,
+    con un espacio de separacion en polybar). En bspwm se llaman `n1`-`n4`.
+
+Los numeros van pegados al **rol** (notebook / externo), no a la posicion: muevas
+la notebook al lado que la muevas, siempre tiene los mismos desktops. La notebook
+se detecta por el nombre del output (`eDP*`, `LVDS*`, `DSI*`).
+
+La eleccion se guarda en `~/.config/bspwm/monitors.json` (por-maquina, no se
+versiona) y `bspwmrc` la vuelve a aplicar en cada arranque/`dot bspwm restart`.
