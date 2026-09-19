@@ -12,23 +12,22 @@ class BspwmWindowManagerRepository(CoreWindowManagerRepository):
         self._command_repo = command_repo or CommandRepository()
 
     def list_monitors(self) -> list[str]:
-        return self._query("bspc query -M --names")
+        return self._query(["bspc", "query", "-M", "--names"])
 
     def set_monitor_desktops(self, monitor: str, desktops: list[str]) -> None:
         if not desktops:
             return
-        quoted = " ".join(f"'{d}'" for d in desktops)
-        self._command_repo.run(f"bspc monitor '{monitor}' -d {quoted}")
+        self._command_repo.run_argv(["bspc", "monitor", monitor, "-d", *desktops])
 
     def list_desktops(self) -> list[str]:
-        return self._query("bspc query -D --names")
+        return self._query(["bspc", "query", "-D", "--names"])
 
     def focus_desktop(self, desktop: str) -> None:
         # `%` fuerza selección por nombre (los desktops "1"-"0" son ambiguos).
         self._command_repo.run_argv(["bspc", "desktop", "-f", f"%{desktop}"])
 
     def list_window_ids(self) -> list[str]:
-        return self._query("bspc query -N -n .window")
+        return self._query(["bspc", "query", "-N", "-n", ".window"])
 
     def window_class(self, window_id: str) -> list[str]:
         try:
@@ -62,9 +61,9 @@ class BspwmWindowManagerRepository(CoreWindowManagerRepository):
         # (la one-shot ya se consumió), lo ignoramos.
         self._command_repo.run_argv_quiet(["bspc", "rule", "-r", wm_class])
 
-    def _query(self, cmd: str) -> list[str]:
+    def _query(self, argv: list[str]) -> list[str]:
         try:
-            out = self._command_repo.run_capture(cmd)
+            out = self._command_repo.run_argv_capture(argv)
         except Exception:
             return []
         return [line.strip() for line in out.splitlines() if line.strip()]

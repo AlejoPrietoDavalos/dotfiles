@@ -5,13 +5,6 @@ from src.core.repositories.shell.command_repository import CoreCommandRepository
 
 
 class CommandRepository(CoreCommandRepository):
-    def run(self, cmd: str) -> None:
-        subprocess.run(cmd, shell=True, check=True)
-
-    def run_capture(self, cmd: str) -> str:
-        completed = subprocess.run(cmd, shell=True, check=True, text=True, capture_output=True)
-        return completed.stdout.strip()
-
     def run_argv(self, argv: list[str]) -> None:
         subprocess.run(argv, check=True)
 

@@ -13,7 +13,7 @@ class XrandrDisplayRepository(CoreDisplayRepository):
 
     def _query(self) -> str:
         try:
-            return self._command_repo.run_capture("xrandr --query")
+            return self._command_repo.run_argv_capture(["xrandr", "--query"])
         except Exception:
             return ""
 
@@ -49,7 +49,7 @@ class XrandrDisplayRepository(CoreDisplayRepository):
         cmd_parts = ["xrandr"]
         for output in outputs:
             cmd_parts.extend(["--output", output, "--off"])
-        self._command_repo.run(" ".join(cmd_parts))
+        self._command_repo.run_argv(cmd_parts)
 
     def enable_outputs_auto(self, outputs: list[str]) -> None:
         if not outputs:
@@ -61,4 +61,4 @@ class XrandrDisplayRepository(CoreDisplayRepository):
             if prev:
                 cmd_parts.extend(["--right-of", prev])
             prev = output
-        self._command_repo.run(" ".join(cmd_parts))
+        self._command_repo.run_argv(cmd_parts)

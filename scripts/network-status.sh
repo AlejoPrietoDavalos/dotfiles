@@ -1,19 +1,77 @@
 #!/bin/bash
+# Estado de red para la barra (polybar y eww comparten este script).
+#
+# SALIDA (siempre UNA línea, siempre en stdout):
+#   LAN        ethernet conectada
+#   ▂▄▆█       wifi conectada, con la intensidad de señal
+#   OFF        sin conexión
+#   ERR        nmcli no está instalado
+#   NM!        nmcli falló  ← algo está roto, mirá el log
+#   ...!       el sufijo `!` avisa que nmcli escribió warnings
+#
+# POR QUÉ ASÍ: la barra captura stderr ADEMÁS de stdout, así que un warning de nmcli se
+# dibuja encima del indicador. Pasó de verdad tras un `pacman -Syu`: nmcli (nuevo) avisa
+# que no coincide con el daemon NetworkManager (viejo, aún en memoria) y ese texto tapaba
+# la señal hasta reiniciar.
+#
+# Pero MANDAR stderr a /dev/null es peor: si NetworkManager se cae, nmcli falla, el script
+# llega al final y muestra `OFF` — indistinguible de "no hay wifi". Un problema real
+# disfrazado de estado normal, que es como los problemas sobreviven meses.
+#
+# Entonces: stderr va al LOG (no a la barra), y lo que la barra muestra distingue los tres
+# casos — anda / no hay red / está roto.
 
-set -euo pipefail
+set -uo pipefail
+
+REPO="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+LOG="$REPO/logs/network-status.err"
+
+mkdir -p "$(dirname "$LOG")"
+# Se TRUNCA en cada corrida: el módulo corre cada 3s, y un log que solo crece llenaría el
+# disco en días. Siempre queda el stderr de la última ejecución, que es el que importa.
+: >"$LOG"
+
+# Sufijo `!` si nmcli dejó algo en stderr. La barra sigue mostrando el valor real —el
+# warning de versiones no impide leer la señal—, pero deja de ser invisible.
+warn_suffix() {
+  [ -s "$LOG" ] && printf '!'
+}
+
+nm() {
+  nmcli "$@" 2>>"$LOG"
+}
 
 if ! command -v nmcli >/dev/null 2>&1; then
   printf 'ERR\n'
   exit 0
 fi
 
-if nmcli -t -f TYPE,STATE dev status | grep -q '^ethernet:connected$'; then
-  printf 'LAN\n'
+# El estado se captura UNA vez y se consulta en memoria: así se distingue "nmcli falló"
+# de "nmcli anduvo pero no hay nada conectado", que con un pipe directo a grep se
+# confunden (los dos dan exit != 0).
+if ! dev_status="$(nm -t -f TYPE,STATE dev status)"; then
+  printf 'NM!\n'
   exit 0
 fi
 
-if nmcli -t -f TYPE,STATE dev status | grep -q '^wifi:connected$'; then
-  signal="$(nmcli -t -f IN-USE,SIGNAL dev wifi list | awk -F: '$1=="*"{print $2; exit}')"
+if grep -q '^ethernet:connected$' <<<"$dev_status"; then
+  printf 'LAN%s\n' "$(warn_suffix)"
+  exit 0
+fi
+
+if grep -q '^wifi:connected$' <<<"$dev_status"; then
+  # `--rescan no` NO es un detalle de performance, es la diferencia entre una barra fluida
+  # y una que se traba. El default de nmcli es `--rescan auto`: si la lista de redes en
+  # caché tiene más de ~30s, DISPARA UN ESCANEO DE WIFI y bloquea hasta que termina. Medido
+  # en este equipo: 75-90 ms el caso normal, 1738 ms cuando le toca escanear.
+  #
+  # Y como eww corre todos los `defpoll` de forma bloqueante en el mismo hilo donde lee los
+  # `deflisten`, ese segundo y pico congela la barra ENTERA — se veía como un tirón al
+  # cambiar de escritorio (ver el docstring de `scripts/cpu_status.py`).
+  #
+  # Con `no` se lee siempre la caché. No se pierde nada: NetworkManager la refresca solo
+  # mientras estás conectado, y para dibujar 4 barritas de señal no hace falta más.
+  signal="$(nm -t -f IN-USE,SIGNAL dev wifi list --rescan no | awk -F: '$1=="*"{print $2; exit}')"
   signal="${signal:-0}"
 
   if [ "$signal" -ge 75 ]; then
@@ -26,8 +84,8 @@ if nmcli -t -f TYPE,STATE dev status | grep -q '^wifi:connected$'; then
     bars='▂___'
   fi
 
-  printf '%s\n' "$bars"
+  printf '%s%s\n' "$bars" "$(warn_suffix)"
   exit 0
 fi
 
-printf 'OFF\n'
+printf 'OFF%s\n' "$(warn_suffix)"

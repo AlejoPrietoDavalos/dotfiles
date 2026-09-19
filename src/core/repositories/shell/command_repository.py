@@ -7,17 +7,10 @@ class CoreCommandRepository(ABC):
     This abstraction lives in core so program/file/pkg repositories can execute
     system commands without depending on `subprocess` directly. Typical usage:
     concrete repositories in `app/drivers/repositories/*`.
+
+    Solo API por argv (shell=False): no se expone ejecución por string de shell
+    para evitar command injection al interpolar valores.
     """
-
-    @abstractmethod
-    def run(self, cmd: str) -> None:
-        """Run a shell command string (shell=True style)."""
-        ...
-
-    @abstractmethod
-    def run_capture(self, cmd: str) -> str:
-        """Run a shell command string and return stdout."""
-        ...
 
     @abstractmethod
     def run_argv(self, argv: list[str]) -> None:
