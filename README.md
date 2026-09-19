@@ -137,3 +137,7 @@ se detecta por el nombre del output (`eDP*`, `LVDS*`, `DSI*`).
 
 La eleccion se guarda en `~/.config/bspwm/monitors.json` (por-maquina, no se
 versiona) y `bspwmrc` la vuelve a aplicar en cada arranque/`dot bspwm restart`.
+
+**Scratchpad** (terminal desplegable): `super + grave` (tecla a la izquierda del
+`1`) muestra/oculta una terminal flotante `sticky` en el monitor con foco. Ver
+`scripts/scratchpad.sh` y la regla `scratchpad` en `bspwmrc` (necesita `xdotool`).

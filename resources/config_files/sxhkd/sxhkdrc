@@ -67,6 +67,14 @@ super + {d,Tab}
     rofi -show {run,_}
 
 #---------------------------------------
+#  - scratchpad (terminal desplegable)
+#    `grave` = tecla a la izquierda del 1. Muestra/oculta una terminal
+#    flotante sticky en el monitor con foco (notebook o pantalla grande).
+#---------------------------------------
+super + grave
+    {{DOTFILES_REPO}}/scripts/scratchpad.sh
+
+#---------------------------------------
 #  - audio_output_menu (elegir salida: parlantes/auris/etc)
 #---------------------------------------
 super + a

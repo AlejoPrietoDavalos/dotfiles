@@ -33,6 +33,14 @@ bspc config gapless_monocle      true
 bspc config remove_disabled_monitors  true
 bspc config remove_unplugged_monitors true
 
+#---------------------------------------------------
+#  - scratchpad (terminal desplegable)
+#    Ventana flotante y sticky (te sigue entre monitores).
+#    Toggle con super + grave (ver sxhkdrc, scripts/scratchpad.sh).
+#---------------------------------------------------
+bspc rule -a scratchpad state=floating sticky=on \
+    rectangle=1000x600+0+0 center=on
+
 DOTFILES_REPO="{{DOTFILES_REPO}}"
 
 # Monitor -> desktops mapping (auto from active monitors)
