@@ -7,8 +7,8 @@ _dot() {
   cmd="${COMP_WORDS[1]}"
 
   local commands="install uninstall install-requirement uninstall-requirement \
-install-files uninstall-files install-all install-core remove-core menu wifi \
-clock-set keyboard mirrors-update sddm bspwm bar target clip \
+install-files uninstall-files install-all install-core remove-core menu monitors wifi \
+clock-set keyboard mirrors-update sddm bspwm bidcom bar target clip \
 sxhkd-reload scripts-chmod self"
 
   if [ "$COMP_CWORD" -eq 1 ]; then
@@ -56,6 +56,13 @@ sxhkd-reload scripts-chmod self"
         root="$(dirname "$(readlink -f "$(command -v dot)")")"
         bars="$(python3 -c "import json; d=json.load(open('$root/programs.json')); print(' '.join(sorted(k for k,v in d.items() if v.get('provides')=='bar')))" 2>/dev/null)"
         COMPREPLY=($(compgen -W "$bars --no-restart" -- "$cur"))
+      fi
+      ;;
+    bidcom)
+      if [ "$COMP_CWORD" -eq 2 ]; then
+        COMPREPLY=($(compgen -W "start-work config" -- "$cur"))
+      elif [ "${COMP_WORDS[2]}" = "start-work" ]; then
+        COMPREPLY=($(compgen -W "--only" -- "$cur"))
       fi
       ;;
     keyboard)

@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
-"""Apply monitor layout for bspwm using the core use case."""
+"""Aplica la distribución guardada de monitores/desktops para bspwm.
+
+Lo llama ``bspwmrc`` al arrancar. La elección (lado de la notebook + reparto)
+se guarda con ``dot monitors``; acá sólo se lee y se aplica.
+"""
 
 from src.app.drivers.repositories.logs import ConfigureLoggingRepository
 from src.app.drivers.repositories.system.display_repository import (
     XrandrDisplayRepository,
 )
+from src.app.drivers.repositories.system.monitor_config_repository import (
+    JsonMonitorConfigRepository,
+)
 from src.app.drivers.repositories.system.window_manager_repository import (
     BspwmWindowManagerRepository,
 )
 from src.core.use_cases.apply_monitor_layout import ApplyMonitorLayoutService
-
-REVERSE_MONITOR_LAYOUT = False
 
 
 def main() -> int:
@@ -19,7 +24,7 @@ def main() -> int:
     use_case = ApplyMonitorLayoutService(
         display_repo=XrandrDisplayRepository(),
         window_manager_repo=BspwmWindowManagerRepository(),
-        reverse_monitor_layout=REVERSE_MONITOR_LAYOUT,
+        config_repo=JsonMonitorConfigRepository(),
     )
     use_case.run()
     return 0

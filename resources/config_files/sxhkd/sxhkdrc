@@ -67,6 +67,20 @@ super + {d,Tab}
     rofi -show {run,_}
 
 #---------------------------------------
+#  - scratchpad (terminal desplegable)
+#    `grave` = tecla a la izquierda del 1. Muestra/oculta una terminal
+#    flotante sticky en el monitor con foco (notebook o pantalla grande).
+#---------------------------------------
+super + grave
+    {{DOTFILES_REPO}}/scripts/scratchpad.sh
+
+#---------------------------------------
+#  - audio_output_menu (elegir salida: parlantes/auris/etc)
+#---------------------------------------
+super + a
+    {{DOTFILES_REPO}}/scripts/audio-menu.sh
+
+#---------------------------------------
 #  - mute_unmute/audio--/audio++/
 #---------------------------------------
 XF86Audio{Mute,Lower,Raise}{_,Volume,Volume}
@@ -146,9 +160,18 @@ super + shift + {q,e} + {_,ctrl}
 
 #--------------------------------------
 #  - focus_desktop by number
+#    `%` selecciona por nombre; `^n` es índice global y se corre
+#    cuando la notebook tiene los desktops del pad adelante.
 #--------------------------------------
 super + {1-9,0,KP_End,KP_Down,KP_Next,KP_Left,KP_Begin,KP_Right,KP_Home,KP_Up,KP_Prior,KP_Insert}
-    bspc desktop -f '^{1-9,10,1-9,10}'
+    bspc desktop -f '%{1-9,0,1-9,0}'
+
+#--------------------------------------
+#  - focus_desktop pad (/ * - +) -> desktops n1-n4 de la notebook
+#    (solo existen con el reparto `pad` de `dot monitors`)
+#--------------------------------------
+super + {KP_Divide,KP_Multiply,KP_Subtract,KP_Add}
+    bspc desktop -f '%{n1,n2,n3,n4}'
 
 #--------------------------------------
 #  - focus_window by arrows
@@ -162,7 +185,14 @@ super + {Left,Down,Up,Right}
 #  - send_window_to_desktop by number
 #--------------------------------------
 super + shift + {1-9,0,KP_End,KP_Down,KP_Next,KP_Left,KP_Begin,KP_Right,KP_Home,KP_Up,KP_Prior,KP_Insert} + {_,ctrl}
-    bspc node -d '^{1-9,10,1-9,10}' {--follow,_}
+    bspc node -d '%{1-9,0,1-9,0}' {--follow,_}
+
+#--------------------------------------
+#  - send_window && focus_desktop pad (/ * - +)
+#  - send_window_to_desktop pad
+#--------------------------------------
+super + shift + {KP_Divide,KP_Multiply,KP_Subtract,KP_Add} + {_,ctrl}
+    bspc node -d '%{n1,n2,n3,n4}' {--follow,_}
 
 #--------------------------------------
 #  - send_window_to_monitor_focus by arrows

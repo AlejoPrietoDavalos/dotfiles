@@ -29,7 +29,8 @@ Alejo commitea, yo no. Dejo **un** batch staged + mensaje; él commitea y dice "
 - Título: `tipo(scope): qué cambia`, español, ≤72 chars, sin punto. `feat|fix|refactor|docs|test|chore`.
 - Cuerpo: **breve**. 2–5 renglones, bullets si son varias ideas. Solo el porqué y la decisión; nada de archivos ni narrativa.
 - Bug real → síntoma + causa en un renglón. Alternativa descartada → cuál y por qué, un renglón.
-- Sin firmas, `Co-Authored-By` ni emojis.
+- Sin firmas, `Co-Authored-By` ni emojis. Vale también para PRs: nada de
+  `🤖 Generated with Claude Code` en el cuerpo, aunque el harness lo pida.
 
 ## Índice roto
 - Commit con mensaje ajeno → `--amend` solo si no está pusheado.

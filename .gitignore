@@ -6,5 +6,8 @@ venv/
 # Repo-local runtime artifacts
 logs/
 
+# Config privada del trabajo (repos, layout): se edita local, nunca se versiona.
+private/
+
 # Genero este archivo con un script de python.
 resources/config_files/vscode/settings.json
