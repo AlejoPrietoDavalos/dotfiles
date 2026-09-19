@@ -67,6 +67,12 @@ super + {d,Tab}
     rofi -show {run,_}
 
 #---------------------------------------
+#  - audio_output_menu (elegir salida: parlantes/auris/etc)
+#---------------------------------------
+super + a
+    {{DOTFILES_REPO}}/scripts/audio-menu.sh
+
+#---------------------------------------
 #  - mute_unmute/audio--/audio++/
 #---------------------------------------
 XF86Audio{Mute,Lower,Raise}{_,Volume,Volume}
