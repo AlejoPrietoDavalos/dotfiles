@@ -8,8 +8,8 @@
   },
   "bspwm": {
     "packages": [
-      { "manager": "pacman", "names": ["bspwm", "xorg-setxkbmap", "feh"] },
-      { "manager": "apt", "names": ["bspwm", "x11-xkb-utils", "feh"] }
+      { "manager": "pacman", "names": ["bspwm", "xorg-setxkbmap", "feh", "xdotool"] },
+      { "manager": "apt", "names": ["bspwm", "x11-xkb-utils", "feh", "xdotool"] }
     ],
     "files": { "src": "bspwm", "dst": "~/.config/bspwm" },
     "deps": ["arandr"]
