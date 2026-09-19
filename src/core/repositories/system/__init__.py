@@ -6,6 +6,9 @@ from src.core.repositories.system.media_player_repository import (
     CoreMediaPlayerRepository,
     MediaPlayerAction,
 )
+from src.core.repositories.system.monitor_config_repository import (
+    CoreMonitorConfigRepository,
+)
 from src.core.repositories.system.screenshot_repository import CoreScreenshotRepository
 from src.core.repositories.system.window_manager_repository import (
     CoreWindowManagerRepository,
@@ -18,6 +21,7 @@ __all__ = [
     "CoreKeyboardRepository",
     "CoreMediaPlayerRepository",
     "MediaPlayerAction",
+    "CoreMonitorConfigRepository",
     "CoreScreenshotRepository",
     "CoreWindowManagerRepository",
 ]

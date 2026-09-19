@@ -9,6 +9,9 @@ from src.app.drivers.repositories.system.keyboard_repository import (
 from src.app.drivers.repositories.system.media_player_repository import (
     PlayerctlMediaPlayerRepository,
 )
+from src.app.drivers.repositories.system.monitor_config_repository import (
+    JsonMonitorConfigRepository,
+)
 from src.app.drivers.repositories.system.screenshot_repository import (
     ScrotScreenshotRepository,
 )
@@ -22,6 +25,7 @@ __all__ = [
     "XrandrDisplayRepository",
     "SetxkbmapKeyboardRepository",
     "PlayerctlMediaPlayerRepository",
+    "JsonMonitorConfigRepository",
     "ScrotScreenshotRepository",
     "BspwmWindowManagerRepository",
 ]

@@ -74,6 +74,10 @@ def cmd_menu(args: argparse.Namespace) -> None:
     sh(sys.executable, str(PROJECT_ROOT / "scripts" / "menu.py"))
 
 
+def cmd_monitors(args: argparse.Namespace) -> None:
+    sh(sys.executable, str(PROJECT_ROOT / "scripts" / "monitors_menu.py"))
+
+
 # ---------------------------------------------------------------- wifi
 
 def _nmcli_lines(*cmd: str) -> list[list[str]]:
@@ -332,6 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--purge", action="store_true", help="también remueve los paquetes (WM_REMOVE_PACKAGES=1)")
     p.set_defaults(func=cmd_remove_core)
     sub.add_parser("menu", help="menú interactivo de programas (requiere questionary)").set_defaults(func=cmd_menu)
+    sub.add_parser("monitors", help="elegir lado de la notebook y reparto de desktops (interactivo)").set_defaults(func=cmd_monitors)
 
     p = sub.add_parser("wifi", help="conectar a una red wifi (interactivo)")
     wsub = p.add_subparsers(dest="wifi_command")

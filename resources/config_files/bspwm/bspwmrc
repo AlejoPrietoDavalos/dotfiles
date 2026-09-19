@@ -24,6 +24,15 @@ bspc config split_ratio          0.5
 bspc config borderless_monocle   true
 bspc config gapless_monocle      true
 
+#---------------------------------------------------
+#  - monitores fantasma
+#    Al desenchufar un monitor, bspwm lo sigue viendo como monitor real y se
+#    queda con sus desktops (ej: te desaparecen 6-0). Con esto los suelta y
+#    los desktops vuelven al monitor que queda.
+#---------------------------------------------------
+bspc config remove_disabled_monitors  true
+bspc config remove_unplugged_monitors true
+
 DOTFILES_REPO="{{DOTFILES_REPO}}"
 
 # Monitor -> desktops mapping (auto from active monitors)
